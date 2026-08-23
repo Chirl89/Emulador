@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>NDS Web Emulator - ROG Ally & Safari Edition</title>
+  
+  <!-- Meta tags para iOS Safari PWA (Pantalla completa e instalación) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NDS Emulator">
+  <meta name="theme-color" content="#0d0e15">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e60012'/><rect x='15' y='18' width='70' height='30' rx='5' fill='%23111'/><rect x='15' y='52' width='70' height='30' rx='5' fill='%23111'/><circle cx='30' cy='33' r='4' fill='%2300f0ff'/><circle cx='70' cy='67' r='4' fill='%23ff0055'/></svg>">
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/touch-controls.css">
+</head>
+<body>
+
+  <div id="app" class="app-container">
+    <!-- Barra Superior / Header de Estado -->
+    <header class="top-header">
+      <div class="brand">
+        <div class="logo-badge">NDS</div>
+        <div class="title-group">
+          <h1>NDS Web Emulator</h1>
+          <span class="version-badge" id="app-version">v0.0.1</span>
+        </div>
+      </div>
+
+      <!-- Estado de dispositivos y perifericos -->
+      <div class="status-bar">
+        <div class="status-item" id="gamepad-status" title="Estado del Mando Asus ROG Ally / Xbox">
+          <span class="icon">🎮</span>
+          <span class="label" id="gamepad-label">Mando: Desconectado</span>
+        </div>
+
+        <div class="status-item" id="save-folder-status" title="Carpeta de guardado vinculada">
+          <span class="icon">💾</span>
+          <span class="label" id="save-folder-label">SoulSilver: Sin vincular</span>
+        </div>
+
+        <div class="status-item" id="audio-status" title="Estado de Audio">
+          <span class="icon">🔊</span>
+          <span class="label">Audio OK</span>
+        </div>
+      </div>
+
+      <!-- Acciones de Cabecera -->
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" id="btn-layout-toggle" title="Cambiar modo de pantalla (Horizontal/Vertical)">
+          🖥️ <span class="btn-text">Layout: <strong id="current-layout-name">Horizontal</strong></span>
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btn-settings" title="Configuración de controles y audio">
+          ⚙️ <span class="btn-text">Ajustes</span>
+        </button>
+        <button class="btn btn-primary btn-sm" id="btn-fullscreen" title="Pantalla Completa">
+          ⛶ <span class="btn-text">Pantalla Completa</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Contenedor Principal de la Emulación -->
+    <main class="main-content">
+      
+      <!-- Pantalla de Bienvenida / Carga de ROM cuando no hay juego activo -->
+      <section id="welcome-screen" class="welcome-screen">
+        <div class="welcome-card">
+          <div class="card-glow"></div>
+          <div class="welcome-icon">🎮</div>
+          <h2>Emulador Nintendo DS para Asus ROG Ally & Safari</h2>
+          <p class="subtitle">Compatible con Mando Integrado, Pantalla Táctil, Opera GX (Live Server) y Safari iOS (GitHub Pages).</p>
+
+          <div class="quick-instructions">
+            <div class="info-badge">
+              <span class="badge-title">🎯 Asus ROG Ally</span>
+              <p>Mando integrado XInput mapeado automáticamente. Pantalla táctil inferior 100% interactiva.</p>
+            </div>
+            <div class="info-badge">
+              <span class="badge-title">💾 Guardado Directo</span>
+              <p>Vincula la carpeta <code>SoulSilver</code> para guardar directamente tus archivos <code>.sav</code> en disco.</p>
+            </div>
+          </div>
+
+          <!-- Zona de Arrastrar y Soltar / Cargar Archivo -->
+          <div class="drop-zone" id="rom-drop-zone">
+            <div class="drop-icon">📥</div>
+            <div class="drop-text">
+              <h3>Arrastra aquí tu juego <code>.nds</code> o haz clic para cargar</h3>
+              <p>Ejemplo: <code>C:\Users\cgzla\Documents\SoulSilver\Pokemon - Edicion Plata SoulSilver.nds</code></p>
+            </div>
+            <input type="file" id="rom-file-input" accept=".nds,.zip,.7z" style="display: none;">
+            <button class="btn btn-glow btn-lg" id="btn-browse-rom">
+              📂 Seleccionar ROM (.nds)
+            </button>
+          </div>
+
+          <!-- Acciones Rápidas -->
+          <div class="welcome-actions">
+            <button class="btn btn-secondary" id="btn-link-soulsilver-folder">
+              📁 Vincular Carpeta SoulSilver (Guardado en Disco)
+            </button>
+            <button class="btn btn-secondary" id="btn-load-sav-file">
+              📥 Cargar Partida Existente (.sav)
+            </button>
+          </div>
+
+          <!-- Biblioteca de Juegos Recientes -->
+          <div class="recent-games-container" id="recent-games-container" style="display: none;">
+            <h4>Juegos Recientes</h4>
+            <div class="recent-games-grid" id="recent-games-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Zona de Renderizado del Emulador -->
+      <section id="emulator-container" class="emulator-container layout-horizontal" style="display: none;">
+        <!-- Contenedor donde EmulatorJS inyecta el canvas del emulador -->
+        <div id="game-player" class="game-player"></div>
+      </section>
+
+      <!-- Controles Táctiles en Pantalla (Safari / Móvil / PWA) -->
+      <div id="touch-controls-overlay" class="touch-controls-overlay" style="display: none;">
+        <!-- D-Pad Virtual (Izquierda) -->
+        <div class="touch-group touch-left">
+          <div class="dpad-container">
+            <button class="touch-btn dpad-btn dpad-up" data-key="up">▲</button>
+            <button class="touch-btn dpad-btn dpad-down" data-key="down">▼</button>
+            <button class="touch-btn dpad-btn dpad-left" data-key="left">◀</button>
+            <button class="touch-btn dpad-btn dpad-right" data-key="right">▶</button>
+            <div class="dpad-center"></div>
+          </div>
+          <button class="touch-btn trigger-btn trigger-l" data-key="l">L</button>
+        </div>
+
+        <!-- Botones Centrales (Select / Menu / Start) -->
+        <div class="touch-group touch-center">
+          <button class="touch-btn meta-btn" data-key="select">SELECT</button>
+          <button class="touch-btn meta-btn menu-btn" id="btn-touch-menu">MENU</button>
+          <button class="touch-btn meta-btn" data-key="start">START</button>
+        </div>
+
+        <!-- Botones de Acción ABXY (Derecha) -->
+        <div class="touch-group touch-right">
+          <button class="touch-btn trigger-btn trigger-r" data-key="r">R</button>
+          <div class="action-buttons-container">
+            <button class="touch-btn action-btn action-x" data-key="x">X</button>
+            <button class="touch-btn action-btn action-y" data-key="y">Y</button>
+            <button class="touch-btn action-btn action-a" data-key="a">A</button>
+            <button class="touch-btn action-btn action-b" data-key="b">B</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Barra de Herramientas Inferior / Quick Action Bar durante la partida -->
+    <footer class="bottom-bar" id="gameplay-bar" style="display: none;">
+      <div class="bar-left">
+        <button class="btn btn-ghost btn-sm" id="btn-stop-game" title="Salir al menú principal">
+          ⏹️ Detener
+        </button>
+        <button class="btn btn-ghost btn-sm" id="btn-pause-game" title="Pausar Emulación">
+          ⏸️ Pausar
+        </button>
+        <button class="btn btn-ghost btn-sm" id="btn-fast-forward" title="Modo Acelerar (Fast Forward)">
+          ⏩ Rápido (2x)
+        </button>
+      </div>
+
+      <div class="bar-center">
+        <!-- Guardado y Exportación a SoulSilver -->
+        <button class="btn btn-success btn-sm" id="btn-direct-save" title="Guardar partida directamente en disco">
+          💾 Guardar Partida (.sav)
+        </button>
+        <button class="btn btn-ghost btn-sm" id="btn-quick-savestate" title="Guardado Rápido en Memoria">
+          ⚡ Guardado Rápido
+        </button>
+        <button class="btn btn-ghost btn-sm" id="btn-quick-loadstate" title="Cargar Estado Rápido">
+          🔄 Cargar Estado
+        </button>
+      </div>
+
+      <div class="bar-right">
+        <!-- Selector Rápido de Layout -->
+        <div class="layout-selector">
+          <button class="layout-chip active" data-layout="layout-horizontal" title="Horizontal (16:9 ROG Ally)">Horizontal</button>
+          <button class="layout-chip" data-layout="layout-vertical" title="Vertical (Clásico)">Vertical</button>
+          <button class="layout-chip" data-layout="layout-touch-focus" title="Enfoque Pantalla Táctil">Táctil</button>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Modal de Configuración y Mapeo de Controles -->
+    <div id="settings-modal" class="modal-backdrop" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>⚙️ Configuración del Emulador NDS</h3>
+          <button class="btn-close" id="btn-close-settings">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="settings-section">
+            <h4>🎮 Mando Asus ROG Ally & Gamepad</h4>
+            <p class="settings-desc">El mando del ROG Ally funciona automáticamente. Aquí puedes comprobar los botones activos:</p>
+            <div class="gamepad-tester" id="gamepad-tester">
+              <div class="pad-row">
+                <span class="pad-badge" id="gp-btn-a">A: ⚪</span>
+                <span class="pad-badge" id="gp-btn-b">B: ⚪</span>
+                <span class="pad-badge" id="gp-btn-x">X: ⚪</span>
+                <span class="pad-badge" id="gp-btn-y">Y: ⚪</span>
+              </div>
+              <div class="pad-row">
+                <span class="pad-badge" id="gp-btn-l">LB: ⚪</span>
+                <span class="pad-badge" id="gp-btn-r">RB: ⚪</span>
+                <span class="pad-badge" id="gp-btn-lt">LT: ⚪</span>
+                <span class="pad-badge" id="gp-btn-rt">RT: ⚪</span>
+              </div>
+              <div class="pad-row">
+                <span class="pad-badge" id="gp-dpad">D-Pad: ⚪</span>
+                <span class="pad-badge" id="gp-stick-l">Stick Izq: (0, 0)</span>
+                <span class="pad-badge" id="gp-stick-r">Stick Der: (0, 0)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h4>💾 Guardado en Disco (Carpeta SoulSilver)</h4>
+            <p class="settings-desc">Permite a la aplicación guardar directamente en <code>C:\Users\cgzla\Documents\SoulSilver</code> mediante File System API:</p>
+            <div class="folder-sync-box">
+              <div class="folder-path" id="modal-folder-path">Ruta actual: No vinculada</div>
+              <button class="btn btn-secondary btn-sm" id="btn-modal-choose-folder">Elegir Carpeta SoulSilver</button>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h4>📱 Controles Táctiles (Safari / iPhone / iPad)</h4>
+            <label class="toggle-label">
+              <input type="checkbox" id="toggle-touch-controls" checked>
+              <span>Mostrar controles virtuales si no hay mando conectado</span>
+            </label>
+            <label class="toggle-label">
+              <input type="checkbox" id="toggle-haptic-feedback" checked>
+              <span>Vibración háptica al presionar botones táctiles</span>
+            </label>
+          </div>
+
+          <div class="settings-section">
+            <h4>⚡ Rendimiento y Núcleo de Emulación</h4>
+            <div class="select-group">
+              <label for="core-selector">Núcleo WebAssembly:</label>
+              <select id="core-selector" class="form-select">
+                <option value="desmume" selected>DeSmuME WASM (Recomendado, Máxima Compatibilidad)</option>
+                <option value="melonds">melonDS WASM (Alternativo)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="btn-save-settings">Guardar y Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mensajes Flotantes / Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+  </div>
+
+  <!-- Scripts del Emulador -->
+  <script src="js/save-manager.js"></script>
+  <script src="js/gamepad.js"></script>
+  <script src="js/touch-controls.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

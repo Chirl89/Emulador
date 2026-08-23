@@ -1,0 +1,36 @@
+# Nintendo DS ROMs y Archivos de Juegos (Privacidad y Derechos de Autor)
+*.nds
+*.NDS
+*.zip
+*.7z
+*.rar
+*.bin
+
+# Archivos de Guardado y Partidas
+*.sav
+*.SAV
+*.dsv
+*.DSV
+*.state*
+*.srm
+
+# Carpetas de Juegos y ROMs locales
+SoulSilver/
+soulsilver/
+roms/
+ROMs/
+saves/
+Saves/
+
+# Archivos del Sistema Operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs y Temporales
+*.log
+.vscode/
+.idea/
+node_modules/
+dist/
+build/

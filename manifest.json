@@ -1,0 +1,22 @@
+{
+  "name": "NDS Web Emulator",
+  "short_name": "NDS Emulator",
+  "description": "Emulador Web de Nintendo DS optimizado para Asus ROG Ally, Opera GX y Safari iOS.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#090a0f",
+  "theme_color": "#0d0e15",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='35' fill='%23e60012'/><rect x='25' y='30' width='142' height='55' rx='10' fill='%23111'/><rect x='25' y='100' width='142' height='55' rx='10' fill='%23111'/><circle cx='60' cy='58' r='8' fill='%2300f0ff'/><circle cx='132' cy='128' r='8' fill='%23ff0055'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='90' fill='%23e60012'/><rect x='70' y='80' width='372' height='145' rx='25' fill='%23111'/><rect x='70' y='270' width='372' height='145' rx='25' fill='%23111'/><circle cx='160' cy='152' r='20' fill='%2300f0ff'/><circle cx='352' cy='342' r='20' fill='%23ff0055'/></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

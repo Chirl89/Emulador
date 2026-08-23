@@ -1,0 +1,173 @@
+/* ==========================================================================
+   NDS Web Emulator - Controles Táctiles para Safari iOS
+   touch-controls.css v0.0.1
+   ========================================================================== */
+
+.touch-controls-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 20px;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+
+.touch-group {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+}
+
+/* Botones genéricos de toque */
+.touch-btn {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-family: inherit;
+  font-weight: 700;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: none;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  transition: transform 0.05s ease, background 0.05s ease, border-color 0.05s ease;
+}
+
+.touch-btn:active, .touch-btn.pressed {
+  background: rgba(0, 240, 255, 0.45);
+  border-color: #00f0ff;
+  transform: scale(0.92);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.6);
+}
+
+/* ==========================================================================
+   D-Pad Virtual (Izquierda)
+   ========================================================================== */
+.touch-left {
+  align-items: flex-start;
+}
+
+.dpad-container {
+  width: 140px;
+  height: 140px;
+  position: relative;
+}
+
+.dpad-btn {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.dpad-up {
+  top: 0;
+  left: 48px;
+}
+
+.dpad-down {
+  bottom: 0;
+  left: 48px;
+}
+
+.dpad-left {
+  top: 48px;
+  left: 0;
+}
+
+.dpad-right {
+  top: 48px;
+  right: 0;
+}
+
+.dpad-center {
+  position: absolute;
+  top: 48px;
+  left: 48px;
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Gatillos L y R */
+.trigger-btn {
+  width: 70px;
+  height: 38px;
+  border-radius: 12px;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+/* ==========================================================================
+   Botones de Acción ABXY (Derecha)
+   ========================================================================== */
+.touch-right {
+  align-items: flex-end;
+}
+
+.action-buttons-container {
+  width: 140px;
+  height: 140px;
+  position: relative;
+}
+
+.action-btn {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* Disposición Nintendo DS: X arriba, B abajo, Y izquierda, A derecha */
+.action-x {
+  top: 0;
+  left: 47px;
+  border-color: rgba(0, 240, 255, 0.5);
+}
+
+.action-b {
+  bottom: 0;
+  left: 47px;
+  border-color: rgba(255, 184, 0, 0.5);
+}
+
+.action-y {
+  top: 47px;
+  left: 0;
+  border-color: rgba(0, 255, 136, 0.5);
+}
+
+.action-a {
+  top: 47px;
+  right: 0;
+  border-color: rgba(255, 0, 85, 0.5);
+}
+
+/* ==========================================================================
+   Botones Centrales (Select / Start / Menu)
+   ========================================================================== */
+.touch-center {
+  flex-direction: row;
+  margin-bottom: 8px;
+}
+
+.meta-btn {
+  width: 65px;
+  height: 28px;
+  border-radius: 14px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
