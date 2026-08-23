@@ -1,12 +1,12 @@
 # 🎮 NDS Web Emulator (ROG Ally & Safari Edition)
 
-[![Version](https://img.shields.io/badge/version-v0.1.0-00f0ff.svg)](./VERSION)
-[![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS-ff0055.svg)](#)
+[![Version](https://img.shields.io/badge/version-v0.1.1-00f0ff.svg)](./VERSION)
+[![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS%20|%20Opera%20GX-ff0055.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssembly (DeSmuME / melonDS core), optimizado específicamente para:
 1. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
-2. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar.
+2. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
 3. **Safari en iOS / iPadOS / macOS**: PWA instalable con controles virtuales en pantalla y soporte offline para **GitHub Pages**.
 4. **Guardado Directo en Disco**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para guardar partidas `.sav` sin diálogos molestos.
 
@@ -23,9 +23,26 @@ Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssemb
 
 ---
 
-## 🕹️ Guía de Controles en Asus ROG Ally
+## ⌨️ Controles en Opera GX (Teclado de PC)
 
-El emulador mapea de forma nativa los controles del ROG Ally mediante la Gamepad API de HTML5:
+| Tecla de Teclado | Botón Nintendo DS |
+| :--- | :--- |
+| **Flechas de Dirección** | Cruceta NDS (Arriba, Abajo, Izquierda, Derecha) |
+| **Z** | Botón A |
+| **X** | Botón B |
+| **A** | Botón X |
+| **S** | Botón Y |
+| **Q** | Botón L |
+| **E / W** | Botón R |
+| **Enter** | START |
+| **V / Shift** | SELECT |
+| **Clic / Toque con Ratón en Pantalla Inferior** | Stylus / Pantalla Táctil NDS |
+
+---
+
+## 🕹️ Guía de Controles en Asus ROG Ally & Mando Xbox
+
+El emulador mapea de forma nativa los controles del ROG Ally mediante la Gamepad API de HTML5 y conexión directa WebAssembly:
 
 | Botón ROG Ally | Acción en Nintendo DS | Atajo Especial |
 | :--- | :--- | :--- |

@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Gamepad Manager
  * Soporte especializado para Asus ROG Ally (Mando integrado XInput) y mandos estándar
- * Versión: v0.1.0
+ * Versión: v0.1.1
  */
 
 class GamepadController {
@@ -14,20 +14,36 @@ class GamepadController {
     this.isRogAlly = false;
     this.fullscreenToggledRecently = false;
 
-    // Tabla de mapeo de teclas y códigos Emscripten/SDL2
+    // Tabla de mapeo para RetroArch/DeSmuME WASM
+    this.retroArchButtonMap = {
+      b: 0,
+      y: 1,
+      select: 2,
+      start: 3,
+      up: 4,
+      down: 5,
+      left: 6,
+      right: 7,
+      a: 8,
+      x: 9,
+      l: 10,
+      r: 11
+    };
+
+    // Códigos de teclado exactos esperados por EmulatorJS (DeSmuME)
     this.inputDefinitions = {
-      up:     { key: 'ArrowUp',    code: 'ArrowUp',    keyCode: 38 },
-      down:   { key: 'ArrowDown',  code: 'ArrowDown',  keyCode: 40 },
-      left:   { key: 'ArrowLeft',  code: 'ArrowLeft',  keyCode: 37 },
+      up:     { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
+      down:   { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+      left:   { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 },
       right:  { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 },
-      a:      { key: 'x',          code: 'KeyX',       keyCode: 88 },
-      b:      { key: 'z',          code: 'KeyZ',       keyCode: 90 },
-      x:      { key: 's',          code: 'KeyS',       keyCode: 83 },
-      y:      { key: 'a',          code: 'KeyA',       keyCode: 65 },
-      l:      { key: 'q',          code: 'KeyQ',       keyCode: 81 },
-      r:      { key: 'w',          code: 'KeyW',       keyCode: 87 },
-      start:  { key: 'Enter',      code: 'Enter',      keyCode: 13 },
-      select: { key: 'Shift',      code: 'ShiftRight', keyCode: 16 }
+      a:      { key: 'z', code: 'KeyZ', keyCode: 90 },
+      b:      { key: 'x', code: 'KeyX', keyCode: 88 },
+      x:      { key: 'a', code: 'KeyA', keyCode: 65 },
+      y:      { key: 's', code: 'KeyS', keyCode: 83 },
+      l:      { key: 'q', code: 'KeyQ', keyCode: 81 },
+      r:      { key: 'e', code: 'KeyE', keyCode: 69 },
+      start:  { key: 'Enter', code: 'Enter', keyCode: 13 },
+      select: { key: 'v', code: 'KeyV', keyCode: 86 }
     };
 
     this.initEvents();
@@ -143,10 +159,10 @@ class GamepadController {
       right:  isPressed(15) || axisX > this.deadzone,
 
       // Botones de acción NDS
-      a:      isPressed(0), // Xbox A
-      b:      isPressed(1), // Xbox B
-      x:      isPressed(2), // Xbox X
-      y:      isPressed(3), // Xbox Y
+      a:      isPressed(0), // Xbox A -> NDS A
+      b:      isPressed(1), // Xbox B -> NDS B
+      x:      isPressed(2), // Xbox X -> NDS X
+      y:      isPressed(3), // Xbox Y -> NDS Y
 
       // Gatillos L / R
       l:      isPressed(4) || isPressed(6), // LB o LT
@@ -157,7 +173,7 @@ class GamepadController {
       start:  isPressed(9)
     };
 
-    // Sincronizar estados y disparar keydown / keyup
+    // Sincronizar estados y disparar simulateInput / dispatchKey
     for (const [inputName, active] of Object.entries(currentInputStates)) {
       const wasActive = Boolean(this.activeInputs[inputName]);
       if (active && !wasActive) {
@@ -176,15 +192,29 @@ class GamepadController {
   }
 
   /**
-   * Dispara un evento de teclado con soporte para Emscripten / WebAssembly
+   * Dispara entrada directa al emulador (simulateInput C-WASM) y teclado de respaldo
    */
   dispatchKey(inputName, isDown) {
+    // 1. Método directo WASM C-API (Inmune a problemas de foco e iframes)
+    const buttonId = this.retroArchButtonMap[inputName];
+    if (buttonId !== undefined && window.EJS_emulator && window.EJS_emulator.gameManager) {
+      const gm = window.EJS_emulator.gameManager;
+      if (typeof gm.simulateInput === 'function') {
+        try {
+          gm.simulateInput(0, buttonId, isDown ? 1 : 0);
+        } catch (e) {}
+      } else if (gm.functions && typeof gm.functions.simulateInput === 'function') {
+        try {
+          gm.functions.simulateInput(0, buttonId, isDown ? 1 : 0);
+        } catch (e) {}
+      }
+    }
+
+    // 2. Método DOM / KeyboardEvent como respaldo
     const def = this.inputDefinitions[inputName];
     if (!def) return;
 
     const eventType = isDown ? 'keydown' : 'keyup';
-    
-    // Crear evento de teclado con código y keyCode exactos
     const event = new KeyboardEvent(eventType, {
       key: def.key,
       code: def.code,
@@ -193,12 +223,20 @@ class GamepadController {
       view: window
     });
 
-    // Inyectar getters para keyCode y which para compatibilidad Emscripten/SDL2
     try {
       Object.defineProperty(event, 'keyCode', { get: () => def.keyCode });
       Object.defineProperty(event, 'which', { get: () => def.keyCode });
       Object.defineProperty(event, 'charCode', { get: () => (isDown ? def.keyCode : 0) });
     } catch (e) {}
+
+    // Despachar en el contenedor padre de EmulatorJS
+    const parentElem = (window.EJS_emulator && window.EJS_emulator.elements && window.EJS_emulator.elements.parent)
+      || document.querySelector('#game-player')
+      || document.querySelector('.ejs_parent');
+
+    if (parentElem) {
+      parentElem.dispatchEvent(event);
+    }
 
     // Despachar a nivel de ventana y documento
     window.dispatchEvent(event);

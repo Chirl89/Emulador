@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Touch Controls
  * Controles virtuales en pantalla para Safari iOS / ROG Ally / Pantalla Táctil
- * Versión: v0.1.0
+ * Versión: v0.1.1
  */
 
 class TouchControls {
@@ -13,20 +13,20 @@ class TouchControls {
     this.userPreference = 'auto'; // 'auto', 'show', 'hide'
     this.activeTouches = new Map(); // identifier -> keyName
 
-    // Mapa de teclas y códigos Emscripten/SDL2
+    // Mapa de teclas y códigos exactos esperados por EmulatorJS (DeSmuME)
     this.keyDefinitions = {
-      up:     { key: 'ArrowUp',    code: 'ArrowUp',    keyCode: 38 },
-      down:   { key: 'ArrowDown',  code: 'ArrowDown',  keyCode: 40 },
-      left:   { key: 'ArrowLeft',  code: 'ArrowLeft',  keyCode: 37 },
+      up:     { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
+      down:   { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+      left:   { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 },
       right:  { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 },
-      a:      { key: 'x',          code: 'KeyX',       keyCode: 88 },
-      b:      { key: 'z',          code: 'KeyZ',       keyCode: 90 },
-      x:      { key: 's',          code: 'KeyS',       keyCode: 83 },
-      y:      { key: 'a',          code: 'KeyA',       keyCode: 65 },
-      l:      { key: 'q',          code: 'KeyQ',       keyCode: 81 },
-      r:      { key: 'w',          code: 'KeyW',       keyCode: 87 },
-      start:  { key: 'Enter',      code: 'Enter',      keyCode: 13 },
-      select: { key: 'Shift',      code: 'ShiftRight', keyCode: 16 }
+      a:      { key: 'z', code: 'KeyZ', keyCode: 90 },
+      b:      { key: 'x', code: 'KeyX', keyCode: 88 },
+      x:      { key: 'a', code: 'KeyA', keyCode: 65 },
+      y:      { key: 's', code: 'KeyS', keyCode: 83 },
+      l:      { key: 'q', code: 'KeyQ', keyCode: 81 },
+      r:      { key: 'e', code: 'KeyE', keyCode: 69 },
+      start:  { key: 'Enter', code: 'Enter', keyCode: 13 },
+      select: { key: 'v', code: 'KeyV', keyCode: 86 }
     };
 
     this.init();

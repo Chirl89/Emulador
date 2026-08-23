@@ -188,6 +188,47 @@ class NDSEmulatorApp {
     };
     window.addEventListener('click', unlockAudio);
     window.addEventListener('touchstart', unlockAudio);
+
+    // 9. Enrutador global de teclado físico (Opera GX / Desktop / ROG Ally)
+    const keyboardKeyMap = {
+      'ArrowUp': 'up',
+      'ArrowDown': 'down',
+      'ArrowLeft': 'left',
+      'ArrowRight': 'right',
+      'z': 'a', 'Z': 'a',
+      'x': 'b', 'X': 'b',
+      'a': 'x', 'A': 'x',
+      's': 'y', 'S': 'y',
+      'q': 'l', 'Q': 'l',
+      'e': 'r', 'E': 'r',
+      'w': 'r', 'W': 'r',
+      'Enter': 'start',
+      'v': 'select', 'V': 'select',
+      'Shift': 'select'
+    };
+
+    const handleKey = (e, isDown) => {
+      // Ignorar si el usuario está interactuando con inputs de formularios o modales
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+      if (!this.isEmulating) return;
+
+      const inputName = keyboardKeyMap[e.key];
+      if (inputName && window.gamepadController) {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+          e.preventDefault();
+        }
+        window.gamepadController.dispatchKey(inputName, isDown);
+      }
+    };
+
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      handleKey(e, true);
+    });
+
+    window.addEventListener('keyup', (e) => {
+      handleKey(e, false);
+    });
   }
 
   /**
@@ -238,6 +279,7 @@ class NDSEmulatorApp {
     window.EJS_startOnLoaded = true;
     window.EJS_language = 'es-ES';
     window.EJS_mouse = true; // Soporte táctil / stylus interactivo en pantalla inferior NDS
+    window.EJS_noAutoFocus = false;
     
     // Opciones adicionales para Handheld / ROG Ally
     window.EJS_Settings = {
@@ -257,6 +299,15 @@ class NDSEmulatorApp {
     script.onload = () => {
       console.log('EmulatorJS cargado correctamente.');
       this.isEmulating = true;
+      
+      // Auto-enfoque al contenedor de juego
+      setTimeout(() => {
+        const playerElem = document.querySelector('#game-player');
+        if (playerElem) {
+          playerElem.focus?.();
+        }
+      }, 500);
+
       if (window.saveManager) {
         window.saveManager.showToast(`🎮 Iniciando ${this.currentRomName}...`, 'success');
       }
