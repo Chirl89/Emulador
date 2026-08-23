@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Gamepad Manager
  * Soporte especializado para Asus ROG Ally (Mando integrado XInput) y mandos estándar
- * Versión: v0.0.1
+ * Versión: v0.1.0
  */
 
 class GamepadController {
@@ -9,8 +9,26 @@ class GamepadController {
     this.connectedGamepadIndex = null;
     this.pollInterval = null;
     this.lastButtonStates = {};
-    this.deadzone = 0.25;
+    this.activeInputs = {};
+    this.deadzone = 0.30;
     this.isRogAlly = false;
+    this.fullscreenToggledRecently = false;
+
+    // Tabla de mapeo de teclas y códigos Emscripten/SDL2
+    this.inputDefinitions = {
+      up:     { key: 'ArrowUp',    code: 'ArrowUp',    keyCode: 38 },
+      down:   { key: 'ArrowDown',  code: 'ArrowDown',  keyCode: 40 },
+      left:   { key: 'ArrowLeft',  code: 'ArrowLeft',  keyCode: 37 },
+      right:  { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 },
+      a:      { key: 'x',          code: 'KeyX',       keyCode: 88 },
+      b:      { key: 'z',          code: 'KeyZ',       keyCode: 90 },
+      x:      { key: 's',          code: 'KeyS',       keyCode: 83 },
+      y:      { key: 'a',          code: 'KeyA',       keyCode: 65 },
+      l:      { key: 'q',          code: 'KeyQ',       keyCode: 81 },
+      r:      { key: 'w',          code: 'KeyW',       keyCode: 87 },
+      start:  { key: 'Enter',      code: 'Enter',      keyCode: 13 },
+      select: { key: 'Shift',      code: 'ShiftRight', keyCode: 16 }
+    };
 
     this.initEvents();
   }
@@ -31,12 +49,14 @@ class GamepadController {
         window.touchControls.onGamepadConnected();
       }
 
-      this.vibrate(100, 0.4, 0.4);
+      this.vibrate(120, 0.4, 0.4);
     });
 
     window.addEventListener('gamepaddisconnected', (e) => {
       console.log('Gamepad desconectado:', e.gamepad.id);
       if (this.connectedGamepadIndex === e.gamepad.index) {
+        // Liberar cualquier tecla presionada
+        this.releaseAllInputs();
         this.connectedGamepadIndex = null;
         this.updateStatusUI(false);
         this.stopPolling();
@@ -50,7 +70,11 @@ class GamepadController {
 
   startPolling() {
     if (this.pollInterval) return;
-    this.pollInterval = requestAnimationFrame(this.poll.bind(this));
+    const pollLoop = () => {
+      this.poll();
+      this.pollInterval = requestAnimationFrame(pollLoop);
+    };
+    this.pollInterval = requestAnimationFrame(pollLoop);
   }
 
   stopPolling() {
@@ -68,29 +92,21 @@ class GamepadController {
       this.processGamepadInput(gp);
       this.updateGamepadTesterUI(gp);
     }
-
-    this.pollInterval = requestAnimationFrame(this.poll.bind(this));
   }
 
   /**
-   * Procesa la entrada del mando físico y dispara atajos o eventos
+   * Procesa la entrada del mando físico, convierte analógicos a cruceta y dispara eventos
    */
   processGamepadInput(gp) {
-    // Mapeo estándar (Xbox / ROG Ally):
-    // 0: A, 1: B, 2: X, 3: Y
-    // 4: LB, 5: RB, 6: LT, 7: RT
-    // 8: Back/View, 9: Start/Menu
-    // 10: L3, 11: R3
-    // 12: Up, 13: Down, 14: Left, 15: Right
-
-    const isPressed = (btnIndex) => gp.buttons[btnIndex] && gp.buttons[btnIndex].pressed;
+    const isPressed = (btnIndex) => Boolean(gp.buttons[btnIndex] && (gp.buttons[btnIndex].pressed || gp.buttons[btnIndex].value > 0.5));
     const justPressed = (btnIndex) => {
       const current = isPressed(btnIndex);
-      const prev = !!this.lastButtonStates[btnIndex];
+      const prev = Boolean(this.lastButtonStates[btnIndex]);
       return current && !prev;
     };
 
-    // Atajo: R3 (Stick Derecho) cambia el modo de pantalla (Horizontal <-> Vertical)
+    // 1. Atajos de función especial
+    // R3 (Stick Derecho) -> Alternar modo de pantalla
     if (justPressed(11)) {
       if (window.app) {
         window.app.toggleNextLayout();
@@ -98,7 +114,7 @@ class GamepadController {
       }
     }
 
-    // Atajo: L3 (Stick Izquierdo) Guardado rápido
+    // L3 (Stick Izquierdo) -> Guardado rápido
     if (justPressed(10)) {
       if (window.app) {
         window.app.quickSaveState();
@@ -106,7 +122,7 @@ class GamepadController {
       }
     }
 
-    // Atajo: Start + Select juntos = Pantalla completa
+    // Start + Select juntos -> Pantalla completa
     if (isPressed(8) && isPressed(9)) {
       if (!this.fullscreenToggledRecently) {
         this.fullscreenToggledRecently = true;
@@ -115,10 +131,105 @@ class GamepadController {
       }
     }
 
-    // Actualizar estados para detección de flancos
+    // 2. Mapeo de botones de juego NDS
+    const axisX = (gp.axes && gp.axes.length > 0) ? gp.axes[0] : 0;
+    const axisY = (gp.axes && gp.axes.length > 1) ? gp.axes[1] : 0;
+
+    const currentInputStates = {
+      // D-Pad físico + Stick Analógico Izquierdo
+      up:     isPressed(12) || axisY < -this.deadzone,
+      down:   isPressed(13) || axisY > this.deadzone,
+      left:   isPressed(14) || axisX < -this.deadzone,
+      right:  isPressed(15) || axisX > this.deadzone,
+
+      // Botones de acción NDS
+      a:      isPressed(0), // Xbox A
+      b:      isPressed(1), // Xbox B
+      x:      isPressed(2), // Xbox X
+      y:      isPressed(3), // Xbox Y
+
+      // Gatillos L / R
+      l:      isPressed(4) || isPressed(6), // LB o LT
+      r:      isPressed(5) || isPressed(7), // RB o RT
+
+      // Select / Start
+      select: isPressed(8),
+      start:  isPressed(9)
+    };
+
+    // Sincronizar estados y disparar keydown / keyup
+    for (const [inputName, active] of Object.entries(currentInputStates)) {
+      const wasActive = Boolean(this.activeInputs[inputName]);
+      if (active && !wasActive) {
+        this.activeInputs[inputName] = true;
+        this.dispatchKey(inputName, true);
+      } else if (!active && wasActive) {
+        this.activeInputs[inputName] = false;
+        this.dispatchKey(inputName, false);
+      }
+    }
+
+    // Actualizar historial de botones
     for (let i = 0; i < gp.buttons.length; i++) {
       this.lastButtonStates[i] = isPressed(i);
     }
+  }
+
+  /**
+   * Dispara un evento de teclado con soporte para Emscripten / WebAssembly
+   */
+  dispatchKey(inputName, isDown) {
+    const def = this.inputDefinitions[inputName];
+    if (!def) return;
+
+    const eventType = isDown ? 'keydown' : 'keyup';
+    
+    // Crear evento de teclado con código y keyCode exactos
+    const event = new KeyboardEvent(eventType, {
+      key: def.key,
+      code: def.code,
+      bubbles: true,
+      cancelable: true,
+      view: window
+    });
+
+    // Inyectar getters para keyCode y which para compatibilidad Emscripten/SDL2
+    try {
+      Object.defineProperty(event, 'keyCode', { get: () => def.keyCode });
+      Object.defineProperty(event, 'which', { get: () => def.keyCode });
+      Object.defineProperty(event, 'charCode', { get: () => (isDown ? def.keyCode : 0) });
+    } catch (e) {}
+
+    // Despachar a nivel de ventana y documento
+    window.dispatchEvent(event);
+    document.dispatchEvent(event);
+    if (document.body) document.body.dispatchEvent(event);
+
+    // Despachar en el canvas activo de emulación
+    const canvas = document.querySelector('#game-player canvas') || document.querySelector('canvas');
+    if (canvas) {
+      canvas.dispatchEvent(event);
+    }
+
+    // Despachar en iframe si EmulatorJS está encapsulado
+    const iframe = document.querySelector('#game-player iframe');
+    if (iframe && iframe.contentWindow) {
+      try {
+        iframe.contentWindow.dispatchEvent(event);
+        if (iframe.contentDocument) {
+          iframe.contentDocument.dispatchEvent(event);
+        }
+      } catch (e) {}
+    }
+  }
+
+  releaseAllInputs() {
+    for (const [inputName, active] of Object.entries(this.activeInputs)) {
+      if (active) {
+        this.dispatchKey(inputName, false);
+      }
+    }
+    this.activeInputs = {};
   }
 
   /**
@@ -137,7 +248,7 @@ class GamepadController {
         });
       }
     } catch (e) {
-      // Navegador o mando sin soporte de vibración
+      // Sin soporte de vibración
     }
   }
 
@@ -163,7 +274,7 @@ class GamepadController {
    */
   updateGamepadTesterUI(gp) {
     const tester = document.getElementById('gamepad-tester');
-    if (!tester || tester.offsetParent === null) return; // Solo si el modal está abierto
+    if (!tester || tester.offsetParent === null) return;
 
     const updateBtn = (id, pressed) => {
       const el = document.getElementById(id);
@@ -179,15 +290,15 @@ class GamepadController {
     updateBtn('gp-btn-y', gp.buttons[3]?.pressed);
     updateBtn('gp-btn-l', gp.buttons[4]?.pressed);
     updateBtn('gp-btn-r', gp.buttons[5]?.pressed);
-    updateBtn('gp-btn-lt', gp.buttons[6]?.pressed);
-    updateBtn('gp-btn-rt', gp.buttons[7]?.pressed);
+    updateBtn('gp-btn-lt', gp.buttons[6]?.pressed || gp.buttons[6]?.value > 0.5);
+    updateBtn('gp-btn-rt', gp.buttons[7]?.pressed || gp.buttons[7]?.value > 0.5);
 
     const dpadEl = document.getElementById('gp-dpad');
     if (dpadEl) {
-      const up = gp.buttons[12]?.pressed;
-      const down = gp.buttons[13]?.pressed;
-      const left = gp.buttons[14]?.pressed;
-      const right = gp.buttons[15]?.pressed;
+      const up = gp.buttons[12]?.pressed || (gp.axes[1] < -this.deadzone);
+      const down = gp.buttons[13]?.pressed || (gp.axes[1] > this.deadzone);
+      const left = gp.buttons[14]?.pressed || (gp.axes[0] < -this.deadzone);
+      const right = gp.buttons[15]?.pressed || (gp.axes[0] > this.deadzone);
       dpadEl.textContent = `D-Pad: ${up ? '▲' : ''}${down ? '▼' : ''}${left ? '◀' : ''}${right ? '▶' : (up || down || left || right ? '' : '⚪')}`;
       if (up || down || left || right) dpadEl.classList.add('pressed');
       else dpadEl.classList.remove('pressed');
@@ -210,3 +321,4 @@ class GamepadController {
 }
 
 window.gamepadController = new GamepadController();
+

@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - ROG Ally & Safari Edition
-   Estilos Principales v0.0.1
+   Estilos Principales v0.1.0
    ========================================================================== */
 
 :root {
@@ -49,6 +49,26 @@ html, body {
   color: var(--text-main);
   font-family: var(--font-family);
   font-size: 14px;
+}
+
+/* Scrollbars estilizadas */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(18, 20, 30, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
 }
 
 /* Contenedor Principal */
@@ -256,10 +276,11 @@ html, body {
   flex: 1;
   position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding: 12px;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
 }
 
 .welcome-screen {
@@ -267,6 +288,7 @@ html, body {
   max-width: 780px;
   margin: auto;
   z-index: 10;
+  padding: 12px 0 24px 0;
 }
 
 .welcome-card {
@@ -279,7 +301,6 @@ html, body {
   padding: 32px 28px;
   box-shadow: var(--shadow-lg);
   text-align: center;
-  overflow: hidden;
 }
 
 .card-glow {
@@ -500,6 +521,8 @@ html, body {
   justify-content: center;
   z-index: 1000;
   padding: 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   animation: fadeIn 0.2s ease;
 }
 
@@ -510,10 +533,10 @@ html, body {
   width: 100%;
   max-width: 580px;
   box-shadow: var(--shadow-lg);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
-  max-height: 85vh;
+  max-height: 90vh;
+  margin: auto;
 }
 
 .modal-header {
@@ -522,6 +545,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
 .modal-header h3 {
@@ -546,9 +570,11 @@ html, body {
 .modal-body {
   padding: 20px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  flex: 1;
 }
 
 .settings-section h4 {

@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.0.1
+ * Versión: v0.1.0
  */
 
 class NDSEmulatorApp {
@@ -113,10 +113,22 @@ class NDSEmulatorApp {
       });
     });
 
-    // 6. Pantalla completa y ajustes
+    // 6. Pantalla completa y controles táctiles
     const fullscreenBtn = document.getElementById('btn-fullscreen');
     if (fullscreenBtn) {
       fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+    }
+
+    const toggleTouchBtn = document.getElementById('btn-toggle-touch');
+    if (toggleTouchBtn) {
+      toggleTouchBtn.addEventListener('click', () => {
+        if (window.touchControls) {
+          const isVis = window.touchControls.toggle();
+          if (window.saveManager) {
+            window.saveManager.showToast(isVis ? '📱 Controles táctiles activados' : '📱 Controles táctiles ocultados', 'info');
+          }
+        }
+      });
     }
 
     const settingsBtn = document.getElementById('btn-settings');
@@ -125,6 +137,26 @@ class NDSEmulatorApp {
     if (settingsBtn) settingsBtn.addEventListener('click', () => this.toggleSettings(true));
     if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', () => this.toggleSettings(false));
     if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', () => this.toggleSettings(false));
+
+    // Ajustes táctiles y hápticos en modal
+    const toggleTouchCheckbox = document.getElementById('toggle-touch-controls');
+    if (toggleTouchCheckbox) {
+      toggleTouchCheckbox.addEventListener('change', (e) => {
+        if (window.touchControls) {
+          if (e.target.checked) window.touchControls.show();
+          else window.touchControls.hide();
+        }
+      });
+    }
+
+    const toggleHapticCheckbox = document.getElementById('toggle-haptic-feedback');
+    if (toggleHapticCheckbox) {
+      toggleHapticCheckbox.addEventListener('change', (e) => {
+        if (window.touchControls) {
+          window.touchControls.hapticEnabled = e.target.checked;
+        }
+      });
+    }
 
     // 7. Controles de Gameplay
     const stopBtn = document.getElementById('btn-stop-game');
@@ -205,6 +237,7 @@ class NDSEmulatorApp {
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoaded = true;
     window.EJS_language = 'es-ES';
+    window.EJS_mouse = true; // Soporte táctil / stylus interactivo en pantalla inferior NDS
     
     // Opciones adicionales para Handheld / ROG Ally
     window.EJS_Settings = {
