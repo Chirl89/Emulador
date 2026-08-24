@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Touch Controls
  * Controles virtuales en pantalla para Safari iOS / ROG Ally / Pantalla Táctil
- * Versión: v0.1.3
+ * Versión: v0.1.4
  */
 
 class TouchControls {
@@ -34,7 +34,7 @@ class TouchControls {
   init() {
     if (!this.overlay) return;
 
-    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const isPureMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     // Configurar listeners en cada botón táctil
     const buttons = this.overlay.querySelectorAll('.touch-btn');
@@ -95,9 +95,11 @@ class TouchControls {
       });
     }
 
-    // Auto-mostrar si es dispositivo táctil y no hay mando físico activo
-    if (isTouchDevice && !this.gamepadConnected) {
+    // Auto-mostrar SOLO en móviles reales (Safari iOS / Android) sin mando físico
+    if (isPureMobile && !this.gamepadConnected && this.userPreference !== 'hide') {
       this.show();
+    } else {
+      this.hide();
     }
   }
 

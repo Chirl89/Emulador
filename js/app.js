@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.1.3
+ * Versión: v0.1.4
  */
 
 class NDSEmulatorApp {
@@ -20,8 +20,45 @@ class NDSEmulatorApp {
       { id: 'layout-touch-focus', name: 'Enfoque Táctil' }
     ];
 
+    this.initEngineGuard();
     this.initUI();
     this.initPWA();
+  }
+
+  /**
+   * Destructor continuo de controles duplicados generados por el motor EmulatorJS
+   */
+  initEngineGuard() {
+    const killEngineGamepads = () => {
+      const selectors = [
+        '.ejs_virtualGamepad',
+        '.ejs_virtualGamepad_open',
+        '.ejs_dpad_main',
+        '.ejs_virtualGamepad_button',
+        '.ejs_virtualGamepad_left',
+        '.ejs_virtualGamepad_right',
+        '.ejs_virtualGamepad_dpad',
+        '.ejs_menu_button',
+        '[class*="ejs_virtualGamepad"]',
+        '[class*="ejs_dpad"]'
+      ];
+      selectors.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => el.remove());
+      });
+
+      // Asegurar que el escudo CSS siempre esté al final del <head>
+      const shield = document.getElementById('ejs-override-shield');
+      if (shield && document.head && document.head.lastElementChild !== shield) {
+        document.head.appendChild(shield);
+      }
+    };
+
+    // Observador permanente de mutaciones DOM
+    const observer = new MutationObserver(killEngineGamepads);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+
+    // Barrido periódico por seguridad
+    setInterval(killEngineGamepads, 200);
   }
 
   initUI() {
