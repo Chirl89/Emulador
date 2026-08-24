@@ -79,10 +79,20 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Oculta de forma permanente y segura cualquier botón virtual del motor
+   * Oculta de forma permanente y segura cualquier botón virtual, menú contextual o captura del motor
    */
   initEngineGuard() {
-    const hideEngineGamepads = () => {
+    const purgeIntrusiveElements = () => {
+      // 1. Remover botones de captura, menús contextuales, cues y marcas intrusivas de EmulatorJS
+      const intrusive = document.querySelectorAll(
+        '.ejs_context_menu, .ejs_menu, .ejs_cues, .ejs_cue, .ejs_screen_capture, ' +
+        '.ejs_watermark, .ejs_popup, .ejs_alert, .ejs_confirm, [class*="ejs_menu"], ' +
+        '[class*="ejs_context"], [class*="ejs_cue"], [class*="ejs_capture"], ' +
+        '.ejs_virtualGamepad, .ejs_virtualGamepad_parent, .ejs_virtualGamepad_open, ' +
+        '.ejs_dpad_main, .ejs_virtualGamepad_button, [class*="ejs_virtualGamepad"], [class*="ejs_dpad"]'
+      );
+      intrusive.forEach(el => el.remove());
+
       if (window.EJS_emulator) {
         if (typeof window.EJS_emulator.toggleVirtualGamepad === 'function') {
           try { window.EJS_emulator.toggleVirtualGamepad(false); } catch (e) {}
@@ -90,13 +100,14 @@ class NDSEmulatorApp {
         if (window.EJS_emulator.virtualGamepad) {
           window.EJS_emulator.virtualGamepad.style.display = 'none';
         }
-        if (window.EJS_emulator.elements && window.EJS_emulator.elements.menuToggle) {
-          window.EJS_emulator.elements.menuToggle.style.display = 'none';
+        if (window.EJS_emulator.elements) {
+          if (window.EJS_emulator.elements.menuToggle) window.EJS_emulator.elements.menuToggle.style.display = 'none';
+          if (window.EJS_emulator.elements.contextMenu) window.EJS_emulator.elements.contextMenu.style.display = 'none';
         }
       }
     };
 
-    setInterval(hideEngineGamepads, 500);
+    setInterval(purgeIntrusiveElements, 250);
   }
 
   /**
@@ -560,9 +571,15 @@ class NDSEmulatorApp {
 
     if (welcomeScreen) welcomeScreen.style.display = 'none';
     if (emulatorContainer) emulatorContainer.style.display = 'flex';
-    if (gameplayBar) gameplayBar.style.display = 'flex';
 
-    // Activar clase is-emulating para limpieza total de pantalla en iOS / Móvil
+    // Ocultar cabecera y barra inferior completamente
+    const topHeader = document.querySelector('.top-header');
+    const bottomBar = document.querySelector('.bottom-bar');
+    if (topHeader) topHeader.style.setProperty('display', 'none', 'important');
+    if (bottomBar) bottomBar.style.setProperty('display', 'none', 'important');
+
+    // Activar clase is-emulating en html, body y contenedor principal
+    document.documentElement.classList.add('is-emulating');
     document.body.classList.add('is-emulating');
     if (appEl) appEl.classList.add('is-emulating');
     this.isEmulating = true;
@@ -578,6 +595,14 @@ class NDSEmulatorApp {
     window.EJS_loadStateURL = null;
     window.EJS_loadState = null;
     window.EJS_externalFiles = null; // Evita que downloadFile de EmulatorJS se bloquee con blobs en Safari
+
+    // Desactivar capturas de pantalla, menús intrusivos, cues y marcas de agua de EmulatorJS
+    window.EJS_disableCue = true;
+    window.EJS_screenCapture = false;
+    window.EJS_Buttons = false;
+    window.EJS_hideSettings = true;
+    window.EJS_noAutoFocus = true;
+    window.EJS_watermark = false;
 
     // Configuración global para EmulatorJS
     window.EJS_player = '#game-player';
