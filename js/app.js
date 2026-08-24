@@ -311,7 +311,7 @@ class NDSEmulatorApp {
     // 4. Botones de Guardado y Exportación
     const directSaveBtn = document.getElementById('btn-direct-save');
     if (directSaveBtn) {
-      directSaveBtn.addEventListener('click', () => this.triggerSave(false, false));
+      directSaveBtn.addEventListener('click', () => this.triggerSave(false, true));
     }
 
     const exportSavBtn = document.getElementById('btn-export-sav');
@@ -725,11 +725,11 @@ class NDSEmulatorApp {
       video_threaded: true
     };
 
-    // Callback cuando el juego guarda internamente en su menú
+    // Callback cuando el juego guarda internamente en su menú (ej. Guardar en Pokémon)
     window.EJS_onSaveSave = (data) => {
-      console.log('Evento saveSave detectado: guardando SRAM...');
+      console.log('Evento saveSave detectado: guardando SRAM y generando archivo .sav local...');
       if (data && window.saveManager) {
-        window.saveManager.saveGameData(data, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, true);
+        window.saveManager.saveGameData(data, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, false, true);
       }
     };
 

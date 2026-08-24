@@ -121,7 +121,23 @@ class GamepadController {
       return current && !prev;
     };
 
-    // 1. Atajos de función especial
+    // 1. Atajos de función especial y velocidad
+    // RT / R2 (Botón 7 o gatillo analógico derecho) -> Acelerar emulación (+1x, hasta 10x)
+    if (justPressed(7)) {
+      if (window.app && typeof window.app.changeEmulationSpeed === 'function') {
+        window.app.changeEmulationSpeed(1);
+        this.vibrate(50, 0.4, 0.4);
+      }
+    }
+
+    // LT / L2 (Botón 6 o gatillo analógico izquierdo) -> Desacelerar emulación (-1x, hasta 1x)
+    if (justPressed(6)) {
+      if (window.app && typeof window.app.changeEmulationSpeed === 'function') {
+        window.app.changeEmulationSpeed(-1);
+        this.vibrate(50, 0.2, 0.4);
+      }
+    }
+
     // R3 (Stick Derecho) -> Alternar modo de pantalla
     if (justPressed(11)) {
       if (window.app) {
@@ -164,9 +180,9 @@ class GamepadController {
       x:      isPressed(2), // Xbox X -> NDS X
       y:      isPressed(3), // Xbox Y -> NDS Y
 
-      // Gatillos L / R
-      l:      isPressed(4) || isPressed(6), // LB o LT
-      r:      isPressed(5) || isPressed(7), // RB o RT
+      // Gatillos L / R de Nintendo DS (LB y RB)
+      l:      isPressed(4), // LB (L1) -> NDS L
+      r:      isPressed(5), // RB (R1) -> NDS R
 
       // Select / Start
       select: isPressed(8),

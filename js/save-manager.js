@@ -219,13 +219,17 @@ class SaveManager {
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    setTimeout(() => {
+      try { document.body.removeChild(a); } catch (e) {}
+      URL.revokeObjectURL(url);
+    }, 15000);
 
     if (this.isIOS) {
-      this.showToast(`💾 Archivo "${filename}" generado. Puedes guardarlo en la app Archivos de tu iPhone/iPad.`, 'success');
+      this.showToast(`💾 Archivo "${filename}" generado en la app Archivos / Descargas de tu iPhone.`, 'success');
     } else {
       this.showToast(`📥 Descargando archivo de guardado: ${filename}`, 'success');
     }
