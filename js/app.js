@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.1.9
+ * Versión: v0.2.0
  */
 
 class NDSEmulatorApp {
@@ -13,6 +13,7 @@ class NDSEmulatorApp {
     this.isPaused = false;
     this.selectedCore = 'desmume'; // DeSmuME por defecto para máxima estabilidad y compatibilidad con Pokémon SoulSilver
     this.userExplicitLayoutChoice = false;
+    this.autoSaveInterval = null;
 
     this.layouts = [
       { id: 'layout-horizontal', name: 'Horizontal (ROG Ally / 16:9)' },
@@ -32,6 +33,7 @@ class NDSEmulatorApp {
 
     this.initEngineGuard();
     this.initUI();
+    this.initAutoSaveDaemon();
     this.initPWA();
   }
 
@@ -95,14 +97,45 @@ class NDSEmulatorApp {
     setInterval(hideEngineGamepads, 500);
   }
 
+  /**
+   * Inicializa el servicio de auto-guardado en segundo plano y al cerrar pestaña
+   */
+  initAutoSaveDaemon() {
+    // Auto-sincronizar guardado cada 20 segundos si el juego está en marcha
+    this.autoSaveInterval = setInterval(() => {
+      if (this.isEmulating && !this.isPaused) {
+        this.triggerSave(true);
+      }
+    }, 20000);
+
+    // Guardar automáticamente antes de salir o recargar la página
+    window.addEventListener('beforeunload', () => {
+      if (this.isEmulating) {
+        this.triggerSave(true);
+      }
+    });
+
+    // Guardar si la app entra en segundo plano (ej. cambiar de app en iOS)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && this.isEmulating) {
+        this.triggerSave(true);
+      }
+    });
+  }
+
   initUI() {
     // 1. Selector de ROM y Drag & Drop
     const dropZone = document.getElementById('rom-drop-zone');
     const fileInput = document.getElementById('rom-file-input');
     const browseBtn = document.getElementById('btn-browse-rom');
+    const openFolderBtn = document.getElementById('btn-open-folder-game');
 
     if (browseBtn && fileInput) {
       browseBtn.addEventListener('click', () => fileInput.click());
+    }
+
+    if (openFolderBtn) {
+      openFolderBtn.addEventListener('click', () => this.openGameFromFolder());
     }
 
     if (fileInput) {
@@ -143,32 +176,52 @@ class NDSEmulatorApp {
     if (linkFolderBtn) linkFolderBtn.addEventListener('click', handleLink);
     if (modalLinkFolderBtn) modalLinkFolderBtn.addEventListener('click', handleLink);
 
-    // 3. Cargar archivo .sav externo
+    // 3. Cargar / Importar archivo .sav externo
     const loadSavBtn = document.getElementById('btn-load-sav-file');
-    if (loadSavBtn) {
-      loadSavBtn.addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.sav,.dsv';
-        input.onchange = async (e) => {
-          if (e.target.files.length > 0) {
-            const file = e.target.files[0];
-            const buffer = await file.arrayBuffer();
-            if (window.saveManager) {
-              await window.saveManager.saveToIndexedDB(file.name, new Uint8Array(buffer));
-              window.saveManager.showToast(`✅ Partida importada: ${file.name}`, 'success');
+    const importSavModalBtn = document.getElementById('btn-import-sav-modal');
+    const handleImportSav = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.sav,.dsv';
+      input.onchange = async (e) => {
+        if (e.target.files.length > 0) {
+          const file = e.target.files[0];
+          const buffer = await file.arrayBuffer();
+          const uint8 = new Uint8Array(buffer);
+          if (window.saveManager) {
+            await window.saveManager.saveToIndexedDB(file.name, uint8);
+            if (this.isEmulating && window.EJS_emulator && window.EJS_emulator.gameManager) {
+              const gm = window.EJS_emulator.gameManager;
+              const path = gm.getSaveFilePath();
+              if (path) {
+                gm.FS.writeFile(path, uint8);
+                gm.loadSaveFiles();
+              }
             }
+            window.saveManager.showToast(`✅ Partida importada con éxito: ${file.name}`, 'success');
           }
-        };
-        input.click();
-      });
-    }
+        }
+      };
+      input.click();
+    };
+    if (loadSavBtn) loadSavBtn.addEventListener('click', handleImportSav);
+    if (importSavModalBtn) importSavModalBtn.addEventListener('click', handleImportSav);
 
-    // 4. Botón de guardado directo
+    // 4. Botones de Guardado y Exportación
     const directSaveBtn = document.getElementById('btn-direct-save');
     if (directSaveBtn) {
-      directSaveBtn.addEventListener('click', () => this.triggerSave());
+      directSaveBtn.addEventListener('click', () => this.triggerSave(false, false));
     }
+
+    const exportSavBtn = document.getElementById('btn-export-sav');
+    const exportSavModalBtn = document.getElementById('btn-export-sav-modal');
+    const handleExport = () => {
+      if (window.saveManager) {
+        window.saveManager.exportCurrentSave(this.currentRomName);
+      }
+    };
+    if (exportSavBtn) exportSavBtn.addEventListener('click', handleExport);
+    if (exportSavModalBtn) exportSavModalBtn.addEventListener('click', handleExport);
 
     // 5. Botones de Layout
     const layoutToggleBtn = document.getElementById('btn-layout-toggle');
@@ -327,6 +380,54 @@ class NDSEmulatorApp {
   }
 
   /**
+   * Abre directamente una carpeta en disco (ej. SoulSilver), detecta la ROM e inicializa auto-guardado
+   */
+  async openGameFromFolder() {
+    if (!('showDirectoryPicker' in window)) {
+      document.getElementById('rom-file-input')?.click();
+      return;
+    }
+
+    try {
+      const dirHandle = await window.showDirectoryPicker({
+        id: 'nds_soulsilver_saves',
+        mode: 'readwrite',
+        startIn: 'documents'
+      });
+
+      if (window.saveManager) {
+        window.saveManager.directoryHandle = dirHandle;
+        if (window.saveManager.db) {
+          const tx = window.saveManager.db.transaction('handles', 'readwrite');
+          tx.objectStore('handles').put({ id: 'soulsilver_dir', handle: dirHandle });
+        }
+        window.saveManager.updateFolderStatusUI(dirHandle.name, true);
+      }
+
+      // Buscar archivo .nds dentro de la carpeta
+      let foundRomFile = null;
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file' && entry.name.match(/\.(nds|zip|7z)$/i)) {
+          foundRomFile = await entry.getFile();
+          break;
+        }
+      }
+
+      if (foundRomFile) {
+        window.saveManager?.showToast(`📂 Juego encontrado: ${foundRomFile.name}`, 'success');
+        this.loadRomFile(foundRomFile);
+      } else {
+        window.saveManager?.showToast(`📁 Carpeta "${dirHandle.name}" vinculada. Por favor selecciona el archivo .nds a continuación.`, 'info');
+        document.getElementById('rom-file-input')?.click();
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Error abriendo carpeta:', err);
+      }
+    }
+  }
+
+  /**
    * Actualiza la etiqueta informativa de dispositivo y modo en la barra superior
    */
   updateDeviceStatusBadge() {
@@ -411,7 +512,20 @@ class NDSEmulatorApp {
       volume: 1.0
     };
 
-    window.EJS_onGameStart = () => {
+    // Callbacks de guardado automático nativos de EmulatorJS
+    window.EJS_onSaveSave = (data) => {
+      console.log('Evento saveSave detectado del núcleo WASM');
+      if (data && window.saveManager) {
+        window.saveManager.saveGameData(data, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, true);
+      }
+    };
+
+    window.EJS_onSaveUpdate = () => {
+      console.log('Evento onSaveUpdate detectado: sincronizando guardado...');
+      this.triggerSave(true);
+    };
+
+    window.EJS_onGameStart = async () => {
       // 1. Remover cualquier botón o gamepad residual del motor
       const duplicates = document.querySelectorAll('.ejs_virtualGamepad, .ejs_virtualGamepad_open, .ejs_dpad_main, [class*="ejs_virtualGamepad"]');
       duplicates.forEach(el => el.remove());
@@ -421,6 +535,13 @@ class NDSEmulatorApp {
 
       // 2. Aplicar opciones de núcleo para Pantalla Dual y Stylus Táctil
       this.applyCoreTouchSettings();
+
+      // 3. Auto-inyectar partida guardada previa (.sav) desde disco o IndexedDB
+      if (window.saveManager) {
+        setTimeout(async () => {
+          await window.saveManager.injectSaveIntoEmulator(this.currentRomName);
+        }, 300);
+      }
     };
 
     // Cargar loader.js de EmulatorJS si no está cargado
@@ -464,8 +585,10 @@ class NDSEmulatorApp {
    * Detiene la partida actual y regresa a la pantalla principal
    */
   stopEmulation() {
-    if (confirm('¿Deseas salir al menú principal? Asegúrate de haber guardado tu partida.')) {
-      location.reload();
+    if (confirm('¿Deseas salir al menú principal? Se guardará tu partida automáticamente.')) {
+      this.triggerSave(true).then(() => {
+        location.reload();
+      });
     }
   }
 
@@ -500,34 +623,72 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Dispara el guardado de partida a disco o descarga
+   * Dispara el guardado de partida a disco (sobreescritura) o descarga/iOS
    */
-  async triggerSave() {
-    if (window.EJS_emulator && typeof window.EJS_emulator.saveSaveFiles === 'function') {
+  async triggerSave(isAutoSave = false, forceDownload = false) {
+    if (!window.EJS_emulator || !window.EJS_emulator.gameManager) {
+      if (!isAutoSave && window.saveManager) {
+        window.saveManager.showToast('ℹ️ El emulador se está iniciando, espera un momento...', 'info');
+      }
+      return;
+    }
+
+    const gm = window.EJS_emulator.gameManager;
+    let saveData = null;
+
+    try {
+      if (typeof gm.getSaveFile === 'function') {
+        saveData = gm.getSaveFile();
+      } else if (typeof gm.saveSaveFiles === 'function') {
+        gm.saveSaveFiles();
+        saveData = gm.getSaveFile(false);
+      }
+    } catch (err) {
+      console.error('Error extrayendo guardado del emulador:', err);
+    }
+
+    if (saveData && window.saveManager) {
+      await window.saveManager.saveGameData(saveData, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, isAutoSave, forceDownload);
+    } else if (!isAutoSave && window.saveManager) {
+      window.saveManager.showToast('ℹ️ Guarda la partida dentro del juego (Guardar en Pokémon) y luego pulsa este botón.', 'info');
+    }
+  }
+
+  /**
+   * Guarda un estado rápido en memoria e IndexedDB
+   */
+  async quickSaveState() {
+    if (window.EJS_emulator && window.EJS_emulator.gameManager) {
       try {
-        const saveData = await window.EJS_emulator.saveSaveFiles();
-        if (saveData && window.saveManager) {
-          await window.saveManager.saveGameData(saveData, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`);
+        const state = window.EJS_emulator.gameManager.getState();
+        if (state && window.saveManager) {
+          await window.saveManager.saveQuickState(this.currentRomName, state);
+          window.saveManager.showToast('⚡ Guardado rápido generado con éxito.', 'success');
         }
       } catch (err) {
-        console.error('Error extrayendo guardado del emulador:', err);
-      }
-    } else {
-      if (window.saveManager) {
-        window.saveManager.showToast('ℹ️ Guarda la partida dentro del menú del juego (Guardar en Pokémon) y luego pulsa este botón.', 'info');
+        console.error('Error generando savestate:', err);
+        window.saveManager?.showToast('⚠️ No se pudo generar el guardado rápido.', 'warning');
       }
     }
   }
 
-  quickSaveState() {
-    if (window.saveManager) {
-      window.saveManager.showToast('⚡ Guardado rápido generado en memoria.', 'success');
-    }
-  }
-
-  quickLoadState() {
-    if (window.saveManager) {
-      window.saveManager.showToast('🔄 Cargando último estado guardado...', 'info');
+  /**
+   * Carga el último estado rápido de memoria e IndexedDB
+   */
+  async quickLoadState() {
+    if (window.EJS_emulator && window.EJS_emulator.gameManager && window.saveManager) {
+      try {
+        const state = await window.saveManager.loadQuickState(this.currentRomName);
+        if (state) {
+          window.EJS_emulator.gameManager.loadState(state);
+          window.saveManager.showToast('🔄 Estado rápido restaurado con éxito.', 'info');
+        } else {
+          window.saveManager.showToast('ℹ️ No hay estado rápido previo guardado.', 'info');
+        }
+      } catch (err) {
+        console.error('Error restaurando savestate:', err);
+        window.saveManager?.showToast('⚠️ Error al restaurar estado rápido.', 'warning');
+      }
     }
   }
 
@@ -630,7 +791,7 @@ class NDSEmulatorApp {
           if ('caches' in window) {
             caches.keys().then((keys) => {
               keys.forEach((key) => {
-                if (key !== 'nds-emulator-v0.1.8') {
+                if (key !== 'nds-emulator-v0.2.0') {
                   console.log('Purgando caché obsoleta:', key);
                   caches.delete(key);
                 }
@@ -639,7 +800,7 @@ class NDSEmulatorApp {
           }
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.1.8').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.2.0').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
@@ -652,3 +813,4 @@ class NDSEmulatorApp {
 window.addEventListener('DOMContentLoaded', () => {
   window.app = new NDSEmulatorApp();
 });
+
