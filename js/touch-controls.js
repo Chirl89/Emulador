@@ -1,16 +1,16 @@
 /**
  * NDS Web Emulator - Touch Controls
  * Controles virtuales en pantalla para Safari iOS / ROG Ally / Pantalla Táctil
- * Versión: v0.4.4
+ * Versión: v0.5.1
  */
 
 class TouchControls {
   constructor() {
     this.overlay = document.getElementById('touch-controls-overlay');
-    this.hapticEnabled = true;
+    this.hapticEnabled = localStorage.getItem('nds_haptic_enabled') !== 'false';
     this.visible = false;
     this.gamepadConnected = false;
-    this.userPreference = 'auto'; // 'auto', 'show', 'hide'
+    this.userPreference = localStorage.getItem('nds_touch_mode') || 'auto'; // 'auto', 'show', 'hide'
 
     // Mapa de teclas y códigos exactos esperados por EmulatorJS (DeSmuME)
     this.keyDefinitions = {

@@ -14,8 +14,8 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e60012'/><rect x='15' y='18' width='70' height='30' rx='5' fill='%23111'/><rect x='15' y='52' width='70' height='30' rx='5' fill='%23111'/><circle cx='30' cy='33' r='4' fill='%2300f0ff'/><circle cx='70' cy='67' r='4' fill='%23ff0055'/></svg>">
 
   <!-- Estilos con cache-busting -->
-  <link rel="stylesheet" href="css/style.css?v=0.5.0">
-  <link rel="stylesheet" href="css/touch-controls.css?v=0.5.0">
+  <link rel="stylesheet" href="css/style.css?v=0.5.1">
+  <link rel="stylesheet" href="css/touch-controls.css?v=0.5.1">
 
   <!-- Escudo indestructible contra controles virtuales, barra inferior, menús contextuales y capturas de EmulatorJS -->
   <style id="ejs-override-shield">
@@ -70,7 +70,7 @@
         <div class="logo-badge">NDS</div>
         <div class="title-group">
           <h1>NDS Web Emulator</h1>
-          <span class="version-badge" id="app-version">v0.5.0</span>
+          <span class="version-badge" id="app-version">v0.5.1</span>
         </div>
       </div>
 
@@ -113,7 +113,7 @@
         <button class="btn btn-secondary btn-sm" id="btn-layout-toggle" title="Cambiar modo de pantalla (Horizontal/Vertical)">
           🖥️ <span class="btn-text">Layout: <strong id="current-layout-name">Horizontal</strong></span>
         </button>
-        <button class="btn btn-secondary btn-sm" id="btn-settings" title="Configuración de controles y audio">
+        <button class="btn btn-secondary btn-sm" id="btn-settings" title="Ajustes del emulador (Sonido, vídeo, velocidad)">
           ⚙️ <span class="btn-text">Ajustes</span>
         </button>
         <button class="btn btn-primary btn-sm" id="btn-fullscreen" title="Pantalla Completa">
@@ -129,16 +129,6 @@
       <section id="welcome-screen" class="welcome-screen">
         <div class="welcome-card" id="welcome-card">
           <div class="card-glow"></div>
-
-          <!-- Botones de Acción Superior (Actualización GitHub y Bóveda de Seguridad) -->
-          <div class="welcome-refresh-wrapper" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-            <button class="btn btn-secondary btn-sm" id="btn-force-git-refresh" title="Limpiar caché de Safari y forzar descarga de la última versión de GitHub" style="flex: 1; max-width: 220px;">
-              🔄 Refrescar GitHub
-            </button>
-            <button class="btn btn-secondary btn-sm btn-open-vault" id="btn-open-vault-welcome" title="Abrir Bóveda de Partidas y Copias de Seguridad" style="flex: 1; max-width: 220px; border-color: var(--color-success); color: var(--color-success);">
-              🛡️ Bóveda de Partidas
-            </button>
-          </div>
 
           <!-- Biblioteca de Juegos Recientes (Acceso Directo .nds sin navegar) -->
           <div class="recent-roms-section" id="recent-roms-section">
@@ -159,6 +149,13 @@
             <input type="file" id="rom-file-input" accept=".nds,.NDS,.zip,.ZIP,.7z,.7Z,.sav,.SAV,.dsv,.DSV,application/octet-stream,application/x-nintendo-ds-rom,application/zip,application/x-zip-compressed,*/*" multiple style="display: none;">
             <button class="btn btn-glow btn-lg" id="btn-browse-rom">
               📂 Seleccionar ROM (.nds)
+            </button>
+          </div>
+
+          <!-- Botón Inferior Elegante de Configuración y Guardados -->
+          <div class="welcome-footer-action">
+            <button class="btn btn-secondary btn-sm" id="btn-open-welcome-config" title="Configuración de guardados, sincronización en la nube, bóveda y mantenimiento">
+              ⚙️ Configuración (Nube, Saves y Bóveda)
             </button>
           </div>
         </div>
@@ -198,7 +195,7 @@
           </div>
         </div>
 
-        <!-- Bloque Central: Select/Start -->
+        <!-- Bloque Central: Select/Start desplazados hacia abajo (altura inferior de la cruceta) -->
         <div class="touch-group touch-center">
           <div class="meta-buttons-row">
             <button class="touch-btn meta-btn" data-key="select">SELECT</button>
@@ -263,26 +260,126 @@
       </div>
     </footer>
 
-    <!-- Modal de Configuración y Mapeo de Controles -->
+    <!-- Modal de Ajustes del Emulador (En Partida) -->
     <div id="settings-modal" class="modal-backdrop" style="display: none;">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>⚙️ Configuración del Emulador NDS</h3>
+          <h3>⚙️ Ajustes del Emulador NDS</h3>
           <button class="btn-close" id="btn-close-settings">&times;</button>
         </div>
 
         <div class="modal-body">
+          <!-- 1. Sonido y Audio -->
           <div class="settings-section">
-            <h4>🛡️ Bóveda de Partidas (Time-Machine)</h4>
-            <p class="settings-desc">Historial con hasta 30 snapshots automáticos, restauración con 1 clic y salvaguarda anti-pérdidas:</p>
-            <button class="btn btn-primary btn-sm btn-open-vault" id="btn-open-vault-settings" style="margin-top: 4px;">
-              🛡️ Abrir Bóveda de Partidas
-            </button>
+            <h4>🔊 Audio y Sonido</h4>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <label class="toggle-label">
+                <input type="checkbox" id="toggle-audio-enable" checked>
+                <span>Activar Sonido de Emulación</span>
+              </label>
+              
+              <div>
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">Nivel de Volumen:</label>
+                <div class="settings-range-group">
+                  <span style="font-size: 14px;">🔈</span>
+                  <input type="range" id="audio-volume-slider" class="settings-range-slider" min="0" max="100" value="100" step="5">
+                  <span style="font-size: 14px;">🔊</span>
+                  <span class="settings-range-value" id="audio-volume-value">100%</span>
+                </div>
+              </div>
+
+              <div style="margin-top: 4px;">
+                <button class="btn btn-secondary btn-sm" id="btn-unlock-audio-manual" style="font-size: 11.5px;">
+                  🔊 Reactivar / Desbloquear Motor de Audio
+                </button>
+              </div>
+            </div>
           </div>
 
+          <!-- 2. Velocidad y Rendimiento -->
+          <div class="settings-section">
+            <h4>⚡ Velocidad y Núcleo de Emulación</h4>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div>
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">Velocidad de Emulación:</label>
+                <div class="select-group">
+                  <select id="settings-speed-selector" class="form-select">
+                    <option value="1.0" selected>1.0x (Velocidad Normal)</option>
+                    <option value="1.5">1.5x (Avance Rápido)</option>
+                    <option value="2.0">2.0x (Turbo Rápido)</option>
+                    <option value="3.0">3.0x (Ultra Turbo)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="select-group">
+                <label for="core-selector" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">Núcleo WebAssembly:</label>
+                <select id="core-selector" class="form-select">
+                  <option value="desmume" selected>DeSmuME WASM (Recomendado, Máxima Compatibilidad)</option>
+                  <option value="melonds">melonDS WASM (Alternativo)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Pantalla y Filtros Gráficos -->
+          <div class="settings-section">
+            <h4>📺 Pantalla y Gráficos</h4>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div>
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">Disposición de Pantallas:</label>
+                <select id="settings-layout-selector" class="form-select">
+                  <option value="layout-horizontal" selected>Horizontal (16:9 Asus ROG Ally / PC)</option>
+                  <option value="layout-vertical">Vertical (Clásico Nintendo DS / Safari iOS)</option>
+                  <option value="layout-touch-focus">Enfoque Pantalla Táctil</option>
+                </select>
+              </div>
+
+              <div>
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">Filtro Gráfico de Pantalla:</label>
+                <select id="settings-filter-selector" class="form-select">
+                  <option value="pixelated" selected>Pixel Art Nítido (Pixelated / Crisp)</option>
+                  <option value="smooth">Suavizado Bilineal (Bilinear Smooth)</option>
+                  <option value="crt">Filtro Retro CRT (Scanlines)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Controles Táctiles y Háptica -->
+          <div class="settings-section">
+            <h4>📱 Controles Táctiles y Háptica</h4>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div>
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">Visibilidad de Controles Virtuales:</label>
+                <select id="settings-touch-visibility" class="form-select">
+                  <option value="auto" selected>Automático (Mostrar si no hay mando físico)</option>
+                  <option value="show">Siempre Visible en Pantalla</option>
+                  <option value="hide">Ocultar Siempre</option>
+                </select>
+              </div>
+
+              <label class="toggle-label">
+                <input type="checkbox" id="toggle-haptic-feedback" checked>
+                <span>Vibración háptica al presionar botones táctiles</span>
+              </label>
+
+              <div>
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">Opacidad de Botones Táctiles:</label>
+                <div class="settings-range-group">
+                  <span style="font-size: 12px; color: var(--text-muted);">Tenue</span>
+                  <input type="range" id="touch-opacity-slider" class="settings-range-slider" min="30" max="100" value="95" step="5">
+                  <span style="font-size: 12px; color: var(--text-muted);">Sólido</span>
+                  <span class="settings-range-value" id="touch-opacity-value">95%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Comprobador de Gamepad Asus ROG Ally -->
           <div class="settings-section">
             <h4>🎮 Mando Asus ROG Ally & Gamepad</h4>
-            <p class="settings-desc">El mando del ROG Ally funciona automáticamente. Aquí puedes comprobar los botones activos:</p>
+            <p class="settings-desc">Comprueba la respuesta de los botones y palancas del mando en tiempo real:</p>
             <div class="gamepad-tester" id="gamepad-tester">
               <div class="pad-row">
                 <span class="pad-badge" id="gp-btn-a">A: ⚪</span>
@@ -304,9 +401,44 @@
             </div>
           </div>
 
+          <!-- 6. Acceso Rápido a Bóveda -->
+          <div class="settings-section">
+            <h4>🛡️ Bóveda de Partidas (Time-Machine)</h4>
+            <p class="settings-desc">Gestiona snapshots históricos y copias de seguridad de la partida actual:</p>
+            <button class="btn btn-secondary btn-sm btn-open-vault" id="btn-open-vault-settings" style="margin-top: 2px;">
+              🛡️ Abrir Bóveda de Partidas
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="btn-save-settings">Guardar y Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Configuración y Guardados (Pantalla de Bienvenida) -->
+    <div id="welcome-config-modal" class="modal-backdrop" style="display: none; z-index: 10002;">
+      <div class="modal-content welcome-config-modal-content">
+        <div class="modal-header">
+          <h3>⚙️ Configuración del Sistema y Guardados</h3>
+          <button class="btn-close" id="btn-close-welcome-config">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- 1. Bóveda Time-Machine y Guardados -->
+          <div class="settings-section">
+            <h4>🛡️ Bóveda de Partidas (Time-Machine)</h4>
+            <p class="settings-desc">Historial con hasta 30 snapshots automáticos, restauración con 1 clic y salvaguarda anti-pérdidas:</p>
+            <button class="btn btn-primary btn-sm btn-open-vault" id="btn-open-vault-welcome-modal" style="margin-top: 2px; border-color: var(--color-success); color: var(--color-success);">
+              🛡️ Abrir Bóveda de Partidas
+            </button>
+          </div>
+
+          <!-- 2. Guardado en Disco Local (SoulSilver) -->
           <div class="settings-section">
             <h4>💾 Guardado en Disco y Partidas (.sav)</h4>
-            <p class="settings-desc">En PC/Opera puedes vincular la carpeta <code>SoulSilver</code> para sobreescribir directamente. En iOS puedes exportar el archivo <code>.sav</code>:</p>
+            <p class="settings-desc">En PC/Opera puedes vincular la carpeta <code>SoulSilver</code> para sobreescribir directamente. En iOS puedes exportar e importar archivos <code>.sav</code>:</p>
             <div class="folder-sync-box">
               <div class="folder-path" id="modal-folder-path">Ruta actual: No vinculada</div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -317,11 +449,12 @@
             </div>
           </div>
 
+          <!-- 3. Modo de Guardado en Pokémon -->
           <div class="settings-section">
             <h4>💾 Modo de Guardado al jugar en Pokémon</h4>
             <p class="settings-desc">Elige qué hacer cada vez que guardes dentro del juego:</p>
             <div class="select-group">
-              <select id="save-mode-selector" class="form-select">
+              <select id="welcome-save-mode-selector" class="form-select">
                 <option value="auto_download" selected>📥 Descarga directa (Generar .sav al guardar automáticamente)</option>
                 <option value="ask_modal">💬 Preguntar siempre con ventana emergente</option>
                 <option value="silent">💾 Solo memoria interna protegida (Sin descargas)</option>
@@ -329,24 +462,13 @@
             </div>
           </div>
 
-          <div class="settings-section">
-            <h4>📱 Controles Táctiles (Safari / iPhone / iPad)</h4>
-            <label class="toggle-label">
-              <input type="checkbox" id="toggle-touch-controls" checked>
-              <span>Mostrar controles virtuales si no hay mando conectado</span>
-            </label>
-            <label class="toggle-label">
-              <input type="checkbox" id="toggle-haptic-feedback" checked>
-              <span>Vibración háptica al presionar botones táctiles</span>
-            </label>
-          </div>
-
+          <!-- 4. Sincronización en la Nube con PubNub -->
           <div class="settings-section">
             <h4>☁️ Sincronización en la Nube con PubNub</h4>
-            <p class="settings-desc">Preconfigurado automáticamente con canal dinámico por ROM (<code>nombre_del_juego-save</code>):</p>
+            <p class="settings-desc">Canal dinámico automático por ROM para sincronizar partidas entre iPhone, PC y ROG Ally:</p>
             <div style="display: flex; flex-direction: column; gap: 10px;">
               <div>
-                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Canal del Juego Actual:</label>
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Canal del Juego:</label>
                 <input type="text" id="pubnub-channel-display" class="form-select" value="pokemon_edicion_plata_soulsilver-save" readonly style="font-family: monospace; font-size: 11px; opacity: 0.85; background: rgba(0,0,0,0.3);">
               </div>
               <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap;">
@@ -370,20 +492,21 @@
             </div>
           </div>
 
+          <!-- 5. Mantenimiento y Caché -->
           <div class="settings-section">
-            <h4>⚡ Rendimiento y Núcleo de Emulación</h4>
-            <div class="select-group">
-              <label for="core-selector">Núcleo WebAssembly:</label>
-              <select id="core-selector" class="form-select">
-                <option value="desmume" selected>DeSmuME WASM (Recomendado, Máxima Compatibilidad)</option>
-                <option value="melonds">melonDS WASM (Alternativo)</option>
-              </select>
+            <h4>🔄 Mantenimiento y Versión</h4>
+            <p class="settings-desc">Si has actualizado la app en GitHub, pulsa para forzar la descarga de la última versión en Safari iOS:</p>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <button class="btn btn-secondary btn-sm" id="btn-force-git-refresh" style="border-color: var(--color-primary); color: var(--color-primary);">
+                🔄 Refrescar desde GitHub
+              </button>
+              <span style="font-size: 11px; color: var(--text-muted);">Versión: <strong>v0.5.1</strong></span>
             </div>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button class="btn btn-primary" id="btn-save-settings">Guardar y Cerrar</button>
+          <button class="btn btn-primary" id="btn-save-welcome-config">Cerrar</button>
         </div>
       </div>
     </div>
@@ -394,7 +517,7 @@
         <div class="modal-header">
           <div class="vault-modal-title-group">
             <h3>🛡️ Bóveda de Partidas Time-Machine</h3>
-            <span class="vault-badge-version">v0.5.0</span>
+            <span class="vault-badge-version">v0.5.1</span>
           </div>
           <button class="btn-close" id="btn-close-vault">&times;</button>
         </div>
@@ -490,10 +613,11 @@
   <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.4.3.min.js"></script>
 
   <!-- Scripts del Emulador con cache-busting -->
-  <script src="js/cloud-save-manager.js?v=0.5.0"></script>
-  <script src="js/save-manager.js?v=0.5.0"></script>
-  <script src="js/gamepad.js?v=0.5.0"></script>
-  <script src="js/touch-controls.js?v=0.5.0"></script>
-  <script src="js/app.js?v=0.5.0"></script>
+  <script src="js/cloud-save-manager.js?v=0.5.1"></script>
+  <script src="js/save-manager.js?v=0.5.1"></script>
+  <script src="js/gamepad.js?v=0.5.1"></script>
+  <script src="js/touch-controls.js?v=0.5.1"></script>
+  <script src="js/app.js?v=0.5.1"></script>
 </body>
 </html>
+

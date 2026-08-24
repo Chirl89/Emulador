@@ -1,6 +1,6 @@
 # 🎮 NDS Web Emulator (ROG Ally & Safari Edition)
 
-[![Version](https://img.shields.io/badge/version-v0.5.0-00f0ff.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-v0.5.1-00f0ff.svg)](./VERSION)
 [![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS%20|%20Opera%20GX-ff0055.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
@@ -8,36 +8,22 @@ Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssemb
 1. **🛡️ Sistema Acorazado de Guardado & Bóveda Time-Machine**: Historial con hasta 30 snapshots automáticos por juego, prevención total de sobreescritura con SRAM en blanco, resolución inteligente de conflictos por marcas de tiempo y restauración con 1 clic.
 2. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
 3. **Acceso Directo a ROMs Recientes (.nds)**: Lista de juegos jugados en orden de última partida para jugar con 1 clic sin tener que navegar por archivos ni volver a seleccionarlos.
-4. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
-5. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
-6. **Safari en iOS / iPadOS / macOS**: PWA instalable con controles virtuales en pantalla, respuesta háptica y persistencia duradera garantizada (`navigator.storage.persist`).
-7. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
+4. **📱 Controles Táctiles Optimizados para Safari iOS**: Geometría ajustada anti-desborde lateral en pantallas móviles, alineación perfecta de Select y Start a la altura inferior de la cruceta, selector de opacidad y respuesta háptica.
+5. **⚙️ Menú de Configuración en Bienvenida & Ajustes Reales en Partida**: Panel dedicado en pantalla principal para gestión de PubNub, Bóveda y carpetas locales; y ajustes en vivo para sonido (volumen, activación, desbloqueo), filtros gráficos (Pixel Art, Smooth, CRT), velocidad y núcleos.
+6. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
+7. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
+8. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
 
 ---
 
-## 🛡️ Bóveda de Partidas (Time-Machine) y Protección Anti-Pérdidas
+## ⚙️ Menú de Configuración y Ajustes de Emulación
 
-El emulador implementa un **Sistema de Protección Multinivel**:
-- **Blindaje Anti-Vacío**: El demonio de auto-guardado nunca sobreescribe una partida guardada con datos vacíos o no inicializados del motor.
-- **Historial Time-Machine**: Cada vez que se guarda una versión nueva, la anterior se archiva automáticamente en la Bóveda de seguridad de IndexedDB.
-- **Resolución Bidireccional de Conflictos**: Al arrancar, compara la partida local y la de la nube por marca de tiempo (*timestamp*); la más reciente siempre prevalece sin destruir la otra, creando un respaldo previo.
-- **Restauración en 1 Clic**: Accede al botón **"🛡️ Bóveda"** en cualquier momento para ver todo el historial, descargar archivos `.sav` individuales o restaurar cualquier punto anterior.
-
----
-
-## ☁️ Configuración de Guardado en la Nube (PubNub)
-
-1. Abre el emulador y pulsa en **⚙️ Ajustes**.
-2. En la sección **"☁️ Sincronización en la Nube con PubNub"**, introduce tu **Publish Key** (`pub-c-...`) y **Subscribe Key** (`sub-c-...`).
-3. Elige tu canal/ID de partida (por defecto dinámico: `${nombre_del_juego}-save`).
-4. Pulsa **"💾 Guardar y Conectar"** o **"🔗 Probar Conexión"**.
-5. ¡Listo! Ahora tu partida se sincronizará sola entre tu iPhone, PC y ROG Ally en tiempo real.
-
----
-
-## 🚀 Inicio Rápido en Local (Opera GX + Live Server)
-
-1. Abre la carpeta `c:\Users\cgzla\Documents\Emulador` en **Visual Studio Code**.
+- **Configuración en Bienvenida**: Botón inferior dedicado para gestionar la Bóveda Time-Machine, vinculación de carpetas locales, sincronización con PubNub y actualización directa desde GitHub.
+- **Ajustes en Partida (⚙️)**:
+  - **🔊 Audio**: Interruptor de sonido, control deslizante de volumen (0% a 100%) y botón de reactivación/desbloqueo WebAudio para Safari.
+  - **⚡ Velocidad y Núcleo**: Selector de velocidad (1.0x, 1.5x, 2.0x, 3.0x Turbo) y selector de núcleo WASM (DeSmuME / melonDS).
+  - **📺 Pantalla y Gráficos**: Cambio de layout (Horizontal / Vertical / Táctil) y filtros gráficos (Pixel Art nítido, Suavizado bilineal y Filtro Retro CRT).
+  - **📱 Controles Táctiles**: Modo de visibilidad (Auto / Siempre / Oculto), opacidad de botones táctiles (30% - 100%) y vibración háptica.
 2. Haz clic derecho en `index.html` y selecciona **"Open with Live Server"** (o pulsa el botón **"Go Live"** en la barra inferior azul de VS Code).
 3. Tu navegador **Opera GX** se abrirá automáticamente en `http://127.0.0.1:5500/index.html`.
 4. Haz clic en **"📂 Seleccionar ROM (.nds)"** o en **"📁 Abrir Juego desde Carpeta"** seleccionando:

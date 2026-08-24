@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.5.0
+ * Versión: v0.5.1
  */
 
 class NDSEmulatorApp {
@@ -11,13 +11,24 @@ class NDSEmulatorApp {
     this.isEmulating = false;
     this.isFastForward = false;
     this.isPaused = false;
-    this.selectedCore = 'desmume'; // DeSmuME por defecto para máxima estabilidad y compatibilidad con Pokémon SoulSilver
+    this.selectedCore = localStorage.getItem('nds_core') || 'desmume'; // DeSmuME por defecto para máxima estabilidad y compatibilidad
     this.userExplicitLayoutChoice = false;
     this.autoSaveInterval = null;
-    this.emulationSpeed = 1.0; // Velocidad dinámica entre 1x y 10x
+    this.emulationSpeed = 1.0; // Velocidad dinámica entre 1x y 3x
     this.lastSavedHash = null;
     this.hasPlayerSavedInSession = false;
     this.initialBootSramHash = 0;
+
+    // Configuración de audio y sonido real
+    this.audioMuted = localStorage.getItem('nds_audio_muted') === 'true';
+    this.audioVolume = localStorage.getItem('nds_audio_volume') !== null ? parseFloat(localStorage.getItem('nds_audio_volume')) : 1.0;
+
+    // Filtros de pantalla y renderizado
+    this.videoFilter = localStorage.getItem('nds_video_filter') || 'pixelated';
+
+    // Configuración de controles táctiles
+    this.touchOpacity = localStorage.getItem('nds_touch_opacity') !== null ? parseFloat(localStorage.getItem('nds_touch_opacity')) : 0.95;
+    this.touchVisibilityMode = localStorage.getItem('nds_touch_mode') || 'auto';
 
     this.layouts = [
       { id: 'layout-horizontal', name: 'Horizontal (ROG Ally / 16:9)' },
@@ -428,21 +439,145 @@ class NDSEmulatorApp {
       });
     }
 
+    // --- Modal de Ajustes Generales / En Partida (#settings-modal) ---
     const settingsBtn = document.getElementById('btn-settings');
     const closeSettingsBtn = document.getElementById('btn-close-settings');
     const saveSettingsBtn = document.getElementById('btn-save-settings');
-    const saveModeSelector = document.getElementById('save-mode-selector');
 
-    if (saveModeSelector && window.saveManager) {
-      saveModeSelector.value = window.saveManager.saveMode;
-      saveModeSelector.addEventListener('change', (e) => {
+    // 1. Audio y Sonido
+    const toggleAudioEnable = document.getElementById('toggle-audio-enable');
+    const audioVolumeSlider = document.getElementById('audio-volume-slider');
+    const btnUnlockAudioManual = document.getElementById('btn-unlock-audio-manual');
+
+    if (toggleAudioEnable) {
+      toggleAudioEnable.checked = !this.audioMuted;
+      toggleAudioEnable.addEventListener('change', (e) => {
+        this.toggleAudio(e.target.checked, true);
+      });
+    }
+
+    if (audioVolumeSlider) {
+      audioVolumeSlider.value = Math.round(this.audioVolume * 100);
+      const updateSliderVal = (e) => {
+        const val = parseFloat(e.target.value) / 100;
+        this.setAudioVolume(val, e.type === 'change');
+      };
+      audioVolumeSlider.addEventListener('input', updateSliderVal);
+      audioVolumeSlider.addEventListener('change', updateSliderVal);
+    }
+
+    if (btnUnlockAudioManual) {
+      btnUnlockAudioManual.addEventListener('click', () => this.unlockAudioEngine(true));
+    }
+
+    // 2. Velocidad y Núcleo
+    const settingsSpeedSelector = document.getElementById('settings-speed-selector');
+    const coreSelector = document.getElementById('core-selector');
+
+    if (settingsSpeedSelector) {
+      settingsSpeedSelector.value = this.emulationSpeed.toString();
+      settingsSpeedSelector.addEventListener('change', (e) => {
+        this.emulationSpeed = parseFloat(e.target.value);
+        this.applyEmulationSpeed(this.emulationSpeed);
+        this.updateSpeedUI();
+      });
+    }
+
+    if (coreSelector) {
+      coreSelector.value = this.selectedCore;
+      coreSelector.addEventListener('change', (e) => {
+        this.selectedCore = e.target.value;
+        localStorage.setItem('nds_core', e.target.value);
+        window.saveManager?.showToast(`⚡ Núcleo seleccionado: ${e.target.options[e.target.selectedIndex].text}`, 'info');
+      });
+    }
+
+    // 3. Pantalla y Filtros
+    const settingsLayoutSelector = document.getElementById('settings-layout-selector');
+    const settingsFilterSelector = document.getElementById('settings-filter-selector');
+
+    if (settingsLayoutSelector) {
+      settingsLayoutSelector.value = this.currentLayout;
+      settingsLayoutSelector.addEventListener('change', (e) => {
+        this.setLayout(e.target.value, true);
+      });
+    }
+
+    if (settingsFilterSelector) {
+      settingsFilterSelector.value = this.videoFilter;
+      settingsFilterSelector.addEventListener('change', (e) => {
+        this.applyVideoFilter(e.target.value);
+      });
+    }
+
+    // 4. Controles Táctiles y Háptica
+    const settingsTouchVisibility = document.getElementById('settings-touch-visibility');
+    const toggleHapticFeedback = document.getElementById('toggle-haptic-feedback');
+    const touchOpacitySlider = document.getElementById('touch-opacity-slider');
+
+    if (settingsTouchVisibility) {
+      settingsTouchVisibility.value = this.touchVisibilityMode;
+      settingsTouchVisibility.addEventListener('change', (e) => {
+        this.touchVisibilityMode = e.target.value;
+        localStorage.setItem('nds_touch_mode', e.target.value);
+        if (window.touchControls) {
+          window.touchControls.userPreference = e.target.value;
+          if (e.target.value === 'show') window.touchControls.show();
+          else if (e.target.value === 'hide') window.touchControls.hide();
+          else if (this.isEmulating) window.touchControls.onGameStart();
+        }
+      });
+    }
+
+    if (toggleHapticFeedback) {
+      toggleHapticFeedback.checked = (localStorage.getItem('nds_haptic_enabled') !== 'false');
+      toggleHapticFeedback.addEventListener('change', (e) => {
+        if (window.touchControls) {
+          window.touchControls.hapticEnabled = e.target.checked;
+          localStorage.setItem('nds_haptic_enabled', e.target.checked ? 'true' : 'false');
+        }
+      });
+    }
+
+    if (touchOpacitySlider) {
+      touchOpacitySlider.value = Math.round(this.touchOpacity * 100);
+      const updateOpacity = (e) => {
+        const val = parseFloat(e.target.value) / 100;
+        this.applyTouchOpacity(val);
+      };
+      touchOpacitySlider.addEventListener('input', updateOpacity);
+      touchOpacitySlider.addEventListener('change', updateOpacity);
+    }
+
+    // --- Modal de Configuración en Pantalla de Bienvenida (#welcome-config-modal) ---
+    const btnOpenWelcomeConfig = document.getElementById('btn-open-welcome-config');
+    const btnCloseWelcomeConfig = document.getElementById('btn-close-welcome-config');
+    const btnSaveWelcomeConfig = document.getElementById('btn-save-welcome-config');
+    const welcomeSaveModeSelector = document.getElementById('welcome-save-mode-selector');
+
+    if (btnOpenWelcomeConfig) {
+      btnOpenWelcomeConfig.addEventListener('click', () => {
+        if (welcomeSaveModeSelector && window.saveManager) {
+          welcomeSaveModeSelector.value = window.saveManager.saveMode;
+        }
+        syncPubNubInputs();
+        this.toggleWelcomeConfig(true);
+      });
+    }
+
+    if (btnCloseWelcomeConfig) btnCloseWelcomeConfig.addEventListener('click', () => this.toggleWelcomeConfig(false));
+    if (btnSaveWelcomeConfig) btnSaveWelcomeConfig.addEventListener('click', () => this.toggleWelcomeConfig(false));
+
+    if (welcomeSaveModeSelector && window.saveManager) {
+      welcomeSaveModeSelector.value = window.saveManager.saveMode;
+      welcomeSaveModeSelector.addEventListener('change', (e) => {
         window.saveManager.saveMode = e.target.value;
         localStorage.setItem('nds_save_mode', e.target.value);
         window.saveManager.showToast(`💾 Modo de guardado: ${e.target.options[e.target.selectedIndex].text}`, 'info');
       });
     }
 
-    // Configuración de PubNub Cloud Saves en el Modal de Ajustes
+    // Configuración de PubNub Cloud Saves
     const pubKeyInput = document.getElementById('pubnub-pub-input');
     const subKeyInput = document.getElementById('pubnub-sub-input');
     const channelDisplay = document.getElementById('pubnub-channel-display');
@@ -496,10 +631,7 @@ class NDSEmulatorApp {
     }
 
     if (settingsBtn) settingsBtn.addEventListener('click', () => {
-      if (saveModeSelector && window.saveManager) {
-        saveModeSelector.value = window.saveManager.saveMode;
-      }
-      syncPubNubInputs();
+      this.syncSettingsUI();
       this.toggleSettings(true);
     });
 
@@ -508,10 +640,7 @@ class NDSEmulatorApp {
       inGameMenuBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (saveModeSelector && window.saveManager) {
-          saveModeSelector.value = window.saveManager.saveMode;
-        }
-        syncPubNubInputs();
+        this.syncSettingsUI();
         this.toggleSettings(true);
       });
     }
@@ -527,6 +656,10 @@ class NDSEmulatorApp {
 
     if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', () => this.toggleSettings(false));
     if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', () => this.toggleSettings(false));
+
+    // Aplicar estado inicial de vídeo, opacidad y audio
+    this.applyVideoFilter(this.videoFilter);
+    this.applyTouchOpacity(this.touchOpacity);
 
     // 7. Controles de Gameplay
     const stopBtn = document.getElementById('btn-stop-game');
@@ -1084,10 +1217,10 @@ class NDSEmulatorApp {
     
     window.EJS_Settings = {
       default_controls: true,
-      volume: 1.0,
+      volume: this.audioMuted ? 0.0 : this.audioVolume,
       audio_latency: 128,
       video_vsync: true,
-      video_smooth: false,
+      video_smooth: (this.videoFilter === 'smooth'),
       video_threaded: true
     };
 
@@ -1139,6 +1272,9 @@ class NDSEmulatorApp {
 
       this.applyCoreTouchSettings();
       this.applyEmulationSpeed(this.emulationSpeed);
+      this.applyAudioSettings();
+      this.applyVideoFilter(this.videoFilter);
+      this.applyTouchOpacity(this.touchOpacity);
 
       // Inyección protegida de partida previa
       if (window.saveManager) {
@@ -1380,8 +1516,210 @@ class NDSEmulatorApp {
   toggleSettings(open) {
     const modal = document.getElementById('settings-modal');
     if (modal) {
+      if (open) this.syncSettingsUI();
       modal.style.display = open ? 'flex' : 'none';
     }
+  }
+
+  /**
+   * Abre o cierra el modal de configuración de la pantalla de bienvenida
+   */
+  toggleWelcomeConfig(open) {
+    const modal = document.getElementById('welcome-config-modal');
+    if (!modal) return;
+    if (open) {
+      if (window.cloudSaveManager) {
+        const pubKeyInput = document.getElementById('pubnub-pub-input');
+        const subKeyInput = document.getElementById('pubnub-sub-input');
+        const channelDisplay = document.getElementById('pubnub-channel-display');
+        if (pubKeyInput) pubKeyInput.value = window.cloudSaveManager.publishKey || 'demo';
+        if (subKeyInput) subKeyInput.value = window.cloudSaveManager.subscribeKey || 'demo';
+        if (channelDisplay) channelDisplay.value = window.cloudSaveManager.getChannelForRom(this.currentRomName);
+      }
+      const welcomeSaveMode = document.getElementById('welcome-save-mode-selector');
+      if (welcomeSaveMode && window.saveManager) {
+        welcomeSaveMode.value = window.saveManager.saveMode;
+      }
+      modal.style.display = 'flex';
+    } else {
+      modal.style.display = 'none';
+    }
+  }
+
+  /**
+   * Sincroniza los controles interactivos del modal de ajustes con el estado actual
+   */
+  syncSettingsUI() {
+    const toggleAudio = document.getElementById('toggle-audio-enable');
+    const volumeSlider = document.getElementById('audio-volume-slider');
+    const volumeVal = document.getElementById('audio-volume-value');
+    if (toggleAudio) toggleAudio.checked = !this.audioMuted;
+    if (volumeSlider) volumeSlider.value = Math.round(this.audioVolume * 100);
+    if (volumeVal) volumeVal.textContent = `${Math.round(this.audioVolume * 100)}%`;
+
+    const speedSelector = document.getElementById('settings-speed-selector');
+    if (speedSelector) speedSelector.value = this.emulationSpeed.toString();
+
+    const coreSelector = document.getElementById('core-selector');
+    if (coreSelector) coreSelector.value = this.selectedCore;
+
+    const layoutSelector = document.getElementById('settings-layout-selector');
+    if (layoutSelector) layoutSelector.value = this.currentLayout;
+
+    const filterSelector = document.getElementById('settings-filter-selector');
+    if (filterSelector) filterSelector.value = this.videoFilter;
+
+    const touchVis = document.getElementById('settings-touch-visibility');
+    if (touchVis) touchVis.value = this.touchVisibilityMode;
+
+    const touchHaptic = document.getElementById('toggle-haptic-feedback');
+    if (touchHaptic) touchHaptic.checked = (localStorage.getItem('nds_haptic_enabled') !== 'false');
+
+    const touchOpacity = document.getElementById('touch-opacity-slider');
+    const touchOpacityVal = document.getElementById('touch-opacity-value');
+    if (touchOpacity) touchOpacity.value = Math.round(this.touchOpacity * 100);
+    if (touchOpacityVal) touchOpacityVal.textContent = `${Math.round(this.touchOpacity * 100)}%`;
+  }
+
+  /**
+   * Configura el nivel de volumen de emulación (0.0 a 1.0)
+   */
+  setAudioVolume(vol, isUserInteraction = true) {
+    const clamped = Math.max(0.0, Math.min(1.0, vol));
+    this.audioVolume = clamped;
+    localStorage.setItem('nds_audio_volume', clamped.toString());
+
+    const volumeSlider = document.getElementById('audio-volume-slider');
+    const volumeVal = document.getElementById('audio-volume-value');
+    if (volumeSlider) volumeSlider.value = Math.round(clamped * 100);
+    if (volumeVal) volumeVal.textContent = `${Math.round(clamped * 100)}%`;
+
+    this.applyAudioSettings();
+
+    if (isUserInteraction && !this.audioMuted && window.saveManager) {
+      window.saveManager.showToast(`🔊 Volumen: ${Math.round(clamped * 100)}%`, 'info');
+    }
+  }
+
+  /**
+   * Activa o desactiva el sonido (Mute / Unmute)
+   */
+  toggleAudio(enabled, isUserInteraction = true) {
+    this.audioMuted = !enabled;
+    localStorage.setItem('nds_audio_muted', this.audioMuted ? 'true' : 'false');
+
+    const toggleAudio = document.getElementById('toggle-audio-enable');
+    if (toggleAudio) toggleAudio.checked = enabled;
+
+    this.applyAudioSettings();
+
+    if (isUserInteraction && window.saveManager) {
+      window.saveManager.showToast(enabled ? '🔊 Sonido activado' : '🔇 Sonido silenciado', 'info');
+    }
+  }
+
+  /**
+   * Aplica los parámetros de audio al motor de emulación WebAssembly y contexto WebAudio
+   */
+  applyAudioSettings() {
+    const effectiveVolume = this.audioMuted ? 0.0 : this.audioVolume;
+
+    if (window.EJS_emulator) {
+      try {
+        if (typeof window.EJS_emulator.setVolume === 'function') {
+          window.EJS_emulator.setVolume(effectiveVolume);
+        }
+        if (this.audioMuted && typeof window.EJS_emulator.mute === 'function') {
+          window.EJS_emulator.mute();
+        } else if (!this.audioMuted && typeof window.EJS_emulator.unmute === 'function') {
+          window.EJS_emulator.unmute();
+        }
+        if (window.EJS_emulator.elements?.audio) {
+          window.EJS_emulator.elements.audio.volume = effectiveVolume;
+          window.EJS_emulator.elements.audio.muted = this.audioMuted;
+        }
+      } catch (e) {
+        console.warn('Error aplicando volumen en EmulatorJS:', e);
+      }
+    }
+
+    const audioStatusEl = document.getElementById('audio-status');
+    if (audioStatusEl) {
+      const icon = audioStatusEl.querySelector('.icon');
+      const label = audioStatusEl.querySelector('.label');
+      if (this.audioMuted) {
+        if (icon) icon.textContent = '🔇';
+        if (label) label.textContent = 'Silenciado';
+        audioStatusEl.classList.remove('active');
+      } else {
+        if (icon) icon.textContent = '🔊';
+        if (label) label.textContent = `Audio ${Math.round(this.audioVolume * 100)}%`;
+        audioStatusEl.classList.add('active');
+      }
+    }
+  }
+
+  /**
+   * Reactiva y desbloquea el contexto de audio WebAudio para Safari / iOS
+   */
+  async unlockAudioEngine(showToast = true) {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') {
+          await ctx.resume();
+        }
+      }
+      if (window.EJS_emulator && typeof window.EJS_emulator.unmute === 'function') {
+        window.EJS_emulator.unmute();
+      }
+      this.applyAudioSettings();
+      if (showToast && window.saveManager) {
+        window.saveManager.showToast('🔊 Motor de audio reactivado y sincronizado', 'success');
+      }
+    } catch (e) {
+      console.warn('Error desbloqueando audio WebAudio:', e);
+    }
+  }
+
+  /**
+   * Aplica un filtro visual (Pixel Art Nítido, Suavizado Bilineal, Filtro Retro CRT)
+   */
+  applyVideoFilter(filterName) {
+    const validFilters = ['pixelated', 'smooth', 'crt'];
+    const chosen = validFilters.includes(filterName) ? filterName : 'pixelated';
+    this.videoFilter = chosen;
+    localStorage.setItem('nds_video_filter', chosen);
+
+    const player = document.getElementById('game-player');
+    const container = document.getElementById('emulator-container');
+    const selector = document.getElementById('settings-filter-selector');
+
+    validFilters.forEach(f => {
+      player?.classList.remove(`filter-${f}`);
+      container?.classList.remove(`filter-${f}`);
+    });
+
+    player?.classList.add(`filter-${chosen}`);
+    container?.classList.add(`filter-${chosen}`);
+    if (selector) selector.value = chosen;
+  }
+
+  /**
+   * Aplica la opacidad a los controles táctiles virtuales
+   */
+  applyTouchOpacity(opacityVal) {
+    const clamped = Math.max(0.3, Math.min(1.0, opacityVal));
+    this.touchOpacity = clamped;
+    localStorage.setItem('nds_touch_opacity', clamped.toString());
+
+    document.documentElement.style.setProperty('--touch-btn-opacity', clamped.toString());
+
+    const slider = document.getElementById('touch-opacity-slider');
+    const label = document.getElementById('touch-opacity-value');
+    if (slider) slider.value = Math.round(clamped * 100);
+    if (label) label.textContent = `${Math.round(clamped * 100)}%`;
   }
 
   /**
