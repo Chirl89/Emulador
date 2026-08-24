@@ -186,7 +186,7 @@ class NDSEmulatorApp {
     if (fileInput) {
       fileInput.addEventListener('change', (e) => {
         if (e.target.files && e.target.files.length > 0) {
-          this.loadRomFile(e.target.files[0]);
+          this.loadRomFiles(e.target.files);
         }
       });
     }
@@ -205,7 +205,7 @@ class NDSEmulatorApp {
         e.preventDefault();
         dropZone.classList.remove('drag-over');
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-          this.loadRomFile(e.dataTransfer.files[0]);
+          this.loadRomFiles(e.dataTransfer.files);
         }
       });
     }
@@ -458,25 +458,47 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Carga el archivo ROM (.nds) seleccionado
+   * Carga uno o varios archivos seleccionados (ROM .nds y/o partida .sav previa)
+   */
+  async loadRomFiles(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+
+    let romFile = files.find(f => f.name.match(/\.(nds|zip|7z)$/i));
+    let savFile = files.find(f => f.name.match(/\.(sav|dsv)$/i));
+
+    // Si el usuario incluyó un archivo .sav de su iPhone/PC, guardarlo en memoria primero
+    if (savFile && window.saveManager) {
+      try {
+        const buffer = await savFile.arrayBuffer();
+        const uint8 = new Uint8Array(buffer);
+        await window.saveManager.saveToIndexedDB(savFile.name, uint8);
+        const baseName = window.saveManager.sanitizeName(savFile.name);
+        await window.saveManager.saveToIndexedDB(`${baseName}.sav`, uint8);
+        await window.saveManager.saveToIndexedDB(`game.sav`, uint8);
+        window.saveManager.showToast(`💾 Partida (.sav) detectada y vinculada: ${savFile.name}`, 'info');
+      } catch (err) {
+        console.error('Error leyendo .sav adjunto:', err);
+      }
+    }
+
+    if (romFile) {
+      this.currentRomName = romFile.name;
+      this.currentRomBlob = romFile;
+      if (window.saveManager) {
+        window.saveManager.currentRomName = romFile.name;
+      }
+      await this.startEmulator(romFile);
+    } else if (!savFile) {
+      alert('Por favor, selecciona un archivo de Nintendo DS válido (.nds, .zip o .7z)');
+    }
+  }
+
+  /**
+   * Compatibilidad hacia atrás para un solo archivo
    */
   async loadRomFile(file) {
-    if (!file) return;
-
-    if (!file.name.match(/\.(nds|zip|7z)$/i)) {
-      alert('Por favor, selecciona un archivo de Nintendo DS válido (.nds, .zip o .7z)');
-      return;
-    }
-
-    this.currentRomName = file.name;
-    this.currentRomBlob = file;
-
-    if (window.saveManager) {
-      window.saveManager.currentRomName = file.name;
-    }
-
-    // Iniciar emulación
-    await this.startEmulator(file);
+    await this.loadRomFiles([file]);
   }
 
   /**
@@ -505,7 +527,11 @@ class NDSEmulatorApp {
     const isVertical = (this.currentLayout === 'layout-vertical');
     const baseName = window.saveManager ? window.saveManager.sanitizeName(this.currentRomName) : 'game';
 
-    // Precargar partida previa para EmulatorJS
+    // NUNCA cargar savestates automáticos (para no corromper la lectura del juego)
+    window.EJS_loadStateURL = null;
+    window.EJS_loadState = null;
+
+    // Precargar la partida SRAM (.sav) dentro del sistema de archivos antes de que arranque la ROM
     if (window.saveManager) {
       const priorSave = await window.saveManager.loadExistingSave(this.currentRomName);
       if (priorSave && priorSave.byteLength > 0) {
@@ -514,8 +540,12 @@ class NDSEmulatorApp {
         window.EJS_externalFiles = {
           [`/data/saves/${baseName}.sav`]: saveUrl,
           [`/data/saves/${this.currentRomName}.sav`]: saveUrl,
+          [`/data/saves/${baseName}.dsv`]: saveUrl,
           '/data/saves/game.sav': saveUrl
         };
+        console.log(`[SRAM Boot] Montada partida .sav previa (${priorSave.byteLength} bytes) en /data/saves/`);
+      } else {
+        window.EJS_externalFiles = {};
       }
     }
 
@@ -550,9 +580,9 @@ class NDSEmulatorApp {
       volume: 1.0
     };
 
-    // Callbacks de guardado automático nativos de EmulatorJS
+    // Callback cuando el juego guarda internamente en su menú
     window.EJS_onSaveSave = (data) => {
-      console.log('Evento saveSave detectado del núcleo WASM');
+      console.log('Evento saveSave detectado: guardando SRAM...');
       if (data && window.saveManager) {
         window.saveManager.saveGameData(data, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, true);
       }
@@ -574,13 +604,9 @@ class NDSEmulatorApp {
       // 2. Aplicar opciones de núcleo para Pantalla Dual y Stylus Táctil
       this.applyCoreTouchSettings();
 
-      // 3. Auto-inyectar partida guardada previa (.sav) con reintentos para asegurar carga en SRAM
+      // 3. Verificación suave de partida previa
       if (window.saveManager) {
-        [200, 800, 2000].forEach((delay) => {
-          setTimeout(() => {
-            window.saveManager.injectSaveIntoEmulator(this.currentRomName);
-          }, delay);
-        });
+        window.saveManager.showToast(`🎮 ${this.currentRomName} listo. ¡Usa el menú del juego para continuar/guardar!`, 'success');
       }
     };
 
