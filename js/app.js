@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.4.2
+ * Versión: v0.4.4
  */
 
 class NDSEmulatorApp {
@@ -221,20 +221,23 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Sincroniza todos los elementos UI de velocidad (HUD táctil, botón inferior y OSD)
+   * Sincroniza todos los elementos UI de velocidad (Badge fijo bajo engranaje y botón inferior)
    */
   updateSpeedUI() {
     const speedFormatted = this.emulationSpeed === 1.0 ? '1x' : `${this.emulationSpeed}x`;
 
-    // 1. Actualizar badge visual en controles táctiles
-    const speedBadge = document.getElementById('touch-speed-hud');
+    // 1. Actualizar pequeño indicador fijo debajo del engranaje
+    const speedBadge = document.getElementById('in-game-speed-badge');
     if (speedBadge) {
-      speedBadge.textContent = `⚡ ${speedFormatted}`;
-      speedBadge.style.color = this.emulationSpeed > 1 ? '#00f0ff' : '#ffb800';
-      speedBadge.style.borderColor = this.emulationSpeed > 1 ? 'rgba(0, 240, 255, 0.6)' : 'rgba(255, 184, 0, 0.5)';
+      speedBadge.textContent = speedFormatted;
+      if (this.emulationSpeed > 1.0) {
+        speedBadge.classList.add('is-fast');
+      } else {
+        speedBadge.classList.remove('is-fast');
+      }
     }
 
-    // 2. Actualizar botón en la barra inferior
+    // 2. Actualizar botón en la barra inferior si está visible
     const ffBtn = document.getElementById('btn-fast-forward');
     if (ffBtn) {
       ffBtn.innerHTML = `⚡ ${speedFormatted}`;
@@ -246,26 +249,6 @@ class NDSEmulatorApp {
         ffBtn.classList.add('btn-ghost');
       }
     }
-
-    // 3. Mostrar OSD superior flotante con el número exacto
-    this.showSpeedOSD(speedFormatted);
-  }
-
-  /**
-   * Muestra el badge OSD flotante superior con la velocidad actual (1x, 2x, etc.)
-   */
-  showSpeedOSD(text) {
-    const osd = document.getElementById('speed-osd-badge');
-    if (!osd) return;
-
-    osd.textContent = `⚡ ${text}`;
-    osd.style.color = this.emulationSpeed > 1 ? '#00f0ff' : '#ffb800';
-    osd.classList.add('show');
-
-    clearTimeout(this.speedOsdTimeout);
-    this.speedOsdTimeout = setTimeout(() => {
-      osd.classList.remove('show');
-    }, 1000);
   }
 
   /**
@@ -505,6 +488,15 @@ class NDSEmulatorApp {
         }
         syncPubNubInputs();
         this.toggleSettings(true);
+      });
+    }
+
+    const inGameSpeedBadge = document.getElementById('in-game-speed-badge');
+    if (inGameSpeedBadge) {
+      inGameSpeedBadge.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.cycleEmulationSpeed();
       });
     }
 
@@ -1392,7 +1384,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.4.2') {
+              if (key !== 'nds-emulator-v0.4.4') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1400,7 +1392,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.4.2').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.4.4').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

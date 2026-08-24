@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - ROG Ally & Safari Edition
-   Estilos Principales v0.4.2
+   Estilos Principales v0.4.4
    ========================================================================== */
 
 :root {
@@ -530,13 +530,22 @@ html:not(.is-emulating) .touch-controls-overlay,
   overflow: hidden;
 }
 
-/* Botón de Engranaje de Menú Flotante en la esquina superior derecha (Sin círculo azul) */
-.in-game-menu-btn {
+/* Widget de Menú y Velocidad Fija en la esquina superior derecha */
+.in-game-corner-group {
   position: absolute;
   top: calc(8px + env(safe-area-inset-top, 0px));
   right: calc(10px + env(safe-area-inset-right, 0px));
-  width: 36px;
-  height: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  z-index: 500;
+  pointer-events: auto;
+}
+
+.in-game-menu-btn {
+  width: 32px;
+  height: 32px;
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
@@ -550,8 +559,7 @@ html:not(.is-emulating) .touch-controls-overlay,
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 500;
-  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.95));
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.95));
   transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.2s ease, opacity 0.2s ease;
   touch-action: manipulation;
   user-select: none;
@@ -562,8 +570,8 @@ html:not(.is-emulating) .touch-controls-overlay,
 
 .in-game-menu-btn:hover {
   opacity: 1;
-  transform: scale(1.18) rotate(45deg);
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.7));
+  transform: scale(1.15) rotate(45deg);
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.7));
 }
 
 .in-game-menu-btn:active {
@@ -571,32 +579,42 @@ html:not(.is-emulating) .touch-controls-overlay,
   opacity: 1;
 }
 
-/* Indicador OSD Superior de Velocidad (x2, x3, etc.) */
-.speed-osd-badge {
-  position: absolute;
-  top: calc(14px + env(safe-area-inset-top, 0px));
-  left: 50%;
-  transform: translateX(-50%) translateY(-30px);
-  background: rgba(10, 12, 18, 0.94);
-  color: #00f0ff;
-  border: 1px solid rgba(0, 240, 255, 0.5);
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.35), inset 0 0 10px rgba(0, 240, 255, 0.15);
-  padding: 8px 24px;
-  border-radius: 30px;
-  font-family: var(--font-primary, sans-serif);
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  z-index: 250;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+/* Pequeño número fijo de velocidad debajo del engranaje (nunca mayor que el engranaje) */
+.in-game-speed-badge {
+  background: rgba(10, 12, 18, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffb800;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--font-family, sans-serif);
+  padding: 1px 5px;
+  border-radius: 8px;
+  text-align: center;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  line-height: 1.2;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.9));
+  transition: all 0.15s ease;
+  outline: none;
 }
 
-.speed-osd-badge.show {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+.in-game-speed-badge.is-fast {
+  color: #00f0ff;
+  border-color: rgba(0, 240, 255, 0.6);
+  background: rgba(0, 240, 255, 0.18);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.3);
+}
+
+.in-game-speed-badge:hover {
+  transform: scale(1.1);
+  border-color: #00f0ff;
+}
+
+.in-game-speed-badge:active {
+  transform: scale(0.92);
 }
 
 /* Overlay de carga elegante para evitar pantallas grises/blancas */

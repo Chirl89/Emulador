@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Touch Controls
  * Controles virtuales en pantalla para Safari iOS / ROG Ally / Pantalla Táctil
- * Versión: v0.4.2
+ * Versión: v0.4.4
  */
 
 class TouchControls {
@@ -104,21 +104,6 @@ class TouchControls {
         btn.addEventListener('mouseleave', releaseBtn);
       }
     });
-
-    // Tap en el HUD central de velocidad para ciclar velocidades
-    const speedHud = document.getElementById('touch-speed-hud');
-    if (speedHud) {
-      speedHud.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.triggerHaptic(30);
-        if (window.app && typeof window.app.cycleEmulationSpeed === 'function') {
-          window.app.cycleEmulationSpeed();
-        } else if (window.app && typeof window.app.changeEmulationSpeed === 'function') {
-          window.app.changeEmulationSpeed(1);
-        }
-      });
-    }
 
     // En la pantalla de bienvenida mantener estrictamente oculto
     this.hide();
