@@ -1,8 +1,46 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.1.4
+ * Versión: v0.1.5
  */
+
+// Interceptor a nivel de prototipo para neutralizar la creación de virtualGamepad de EmulatorJS
+(function() {
+  let _EmulatorJS = window.EmulatorJS;
+  const patchPrototype = (cls) => {
+    if (cls && cls.prototype) {
+      cls.prototype.setVirtualGamepad = function() {
+        this.virtualGamepad = document.createElement('div');
+        this.virtualGamepad.style.display = 'none';
+        this.toggleVirtualGamepad = function() {};
+      };
+      const originalInit = cls.prototype.init;
+      if (originalInit) {
+        cls.prototype.init = function(...args) {
+          this.hasTouchScreen = false;
+          this.touch = false;
+          return originalInit.apply(this, args);
+        };
+      }
+    }
+  };
+
+  if (_EmulatorJS) patchPrototype(_EmulatorJS);
+
+  try {
+    Object.defineProperty(window, 'EmulatorJS', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return _EmulatorJS;
+      },
+      set(val) {
+        _EmulatorJS = val;
+        patchPrototype(_EmulatorJS);
+      }
+    });
+  } catch (e) {}
+})();
 
 class NDSEmulatorApp {
   constructor() {
