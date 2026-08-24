@@ -1,10 +1,10 @@
 /**
  * NDS Web Emulator - Service Worker
  * Caché offline inteligente (Network-First) para Safari iOS y GitHub Pages
- * Versión: v0.1.8
+ * Versión: v0.1.9
  */
 
-const CACHE_NAME = 'nds-emulator-v0.1.8';
+const CACHE_NAME = 'nds-emulator-v0.1.9';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

@@ -1,28 +1,77 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.1.8
+ * Versión: v0.1.9
  */
 
 class NDSEmulatorApp {
   constructor() {
     this.currentRomBlob = null;
     this.currentRomName = '';
-    this.currentLayout = 'layout-horizontal';
     this.isEmulating = false;
     this.isFastForward = false;
     this.isPaused = false;
     this.selectedCore = 'desmume'; // DeSmuME por defecto para máxima estabilidad y compatibilidad con Pokémon SoulSilver
+    this.userExplicitLayoutChoice = false;
 
     this.layouts = [
-      { id: 'layout-horizontal', name: 'Horizontal (ROG Ally)' },
-      { id: 'layout-vertical', name: 'Vertical (Clásico)' },
+      { id: 'layout-horizontal', name: 'Horizontal (ROG Ally / 16:9)' },
+      { id: 'layout-vertical', name: 'Vertical (iOS / NDS Clásico)' },
       { id: 'layout-touch-focus', name: 'Enfoque Táctil' }
     ];
+
+    // Auto-identificar dispositivo y resolución óptima
+    this.deviceInfo = this.detectDevice();
+    
+    // Si es iPhone o dispositivo móvil en vertical, usar Vertical por defecto
+    if (this.deviceInfo.isIPhone || (this.deviceInfo.isMobile && this.deviceInfo.isPortrait)) {
+      this.currentLayout = 'layout-vertical';
+    } else {
+      this.currentLayout = 'layout-horizontal';
+    }
 
     this.initEngineGuard();
     this.initUI();
     this.initPWA();
+  }
+
+  /**
+   * Auto-detecta el dispositivo, navegador, orientación y ratio de píxeles
+   */
+  detectDevice() {
+    const ua = navigator.userAgent || '';
+    const isIOS = (/iPad|iPhone|iPod/.test(ua)) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isIPhone = /iPhone|iPod/.test(ua);
+    const isIPad = /iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/.test(ua);
+    const isMobile = isIPhone || isAndroid || (isIPad && window.innerWidth < 1024);
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const dpr = window.devicePixelRatio || 1;
+    const isHandheld = /SteamOS|AMD Custom APU/i.test(ua) || (window.innerWidth === 1920 && window.innerHeight === 1080 && 'ontouchstart' in window);
+
+    const info = {
+      isIOS,
+      isIPhone,
+      isIPad,
+      isAndroid,
+      isMobile,
+      isPortrait,
+      isHandheld,
+      dpr,
+      name: isIPhone ? 'iPhone' : (isIPad ? 'iPad' : (isAndroid ? 'Android' : (isHandheld ? 'ROG Ally' : 'PC Desktop')))
+    };
+
+    // Inyectar clases al elemento raíz para adaptación CSS
+    const root = document.documentElement;
+    root.classList.toggle('device-ios', isIOS);
+    root.classList.toggle('device-iphone', isIPhone);
+    root.classList.toggle('device-ipad', isIPad);
+    root.classList.toggle('device-mobile', isMobile);
+    root.classList.toggle('device-portrait', isPortrait);
+    root.classList.toggle('device-landscape', !isPortrait);
+    root.classList.toggle('device-handheld', isHandheld);
+
+    return info;
   }
 
   /**
@@ -131,7 +180,7 @@ class NDSEmulatorApp {
     layoutChips.forEach(chip => {
       chip.addEventListener('click', () => {
         const layout = chip.dataset.layout;
-        if (layout) this.setLayout(layout);
+        if (layout) this.setLayout(layout, true);
       });
     });
 
@@ -253,6 +302,39 @@ class NDSEmulatorApp {
     window.addEventListener('keyup', (e) => {
       handleKey(e, false);
     });
+
+    // 10. Escucha de orientación y resolución adaptativa para iOS / ROG Ally / PC
+    const handleResizeOrRotate = () => {
+      this.deviceInfo = this.detectDevice();
+      const isPortraitNow = window.innerHeight > window.innerWidth;
+      
+      // Auto-adaptar layout al girar el dispositivo si no ha sido forzado manualmente
+      if ((this.deviceInfo.isMobile || this.deviceInfo.isIOS) && !this.userExplicitLayoutChoice) {
+        const targetLayout = isPortraitNow ? 'layout-vertical' : 'layout-horizontal';
+        if (this.currentLayout !== targetLayout) {
+          this.setLayout(targetLayout);
+          if (window.saveManager) {
+            window.saveManager.showToast(`🔄 Modo adaptado: ${isPortraitNow ? 'Vertical (NDS)' : 'Horizontal (16:9)'}`, 'info');
+          }
+        }
+      }
+      this.updateDeviceStatusBadge();
+    };
+
+    window.addEventListener('resize', handleResizeOrRotate);
+    window.addEventListener('orientationchange', () => setTimeout(handleResizeOrRotate, 150));
+    this.updateDeviceStatusBadge();
+  }
+
+  /**
+   * Actualiza la etiqueta informativa de dispositivo y modo en la barra superior
+   */
+  updateDeviceStatusBadge() {
+    const badge = document.getElementById('device-status-badge');
+    if (badge) {
+      const modeText = this.currentLayout === 'layout-vertical' ? 'Vertical' : 'Horizontal';
+      badge.textContent = `${this.deviceInfo.isIOS ? '🍎' : (this.deviceInfo.isHandheld ? '🎮' : '💻')} ${this.deviceInfo.name} (${modeText})`;
+    }
   }
 
   /**
@@ -295,15 +377,19 @@ class NDSEmulatorApp {
 
     const romUrl = URL.createObjectURL(file);
 
+    // Determinar disposición óptima inicial según el dispositivo
+    const isVertical = (this.currentLayout === 'layout-vertical');
+
     // Configuración global para EmulatorJS
     window.EJS_player = '#game-player';
     window.EJS_core = this.selectedCore; // 'desmume' o 'melonds'
     window.EJS_gameUrl = romUrl;
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoaded = true;
-    // Opciones del núcleo WebAssembly para Pantalla Dual y Modo Táctil Stylus
+    
+    // Opciones del núcleo WebAssembly adaptadas a la resolución y orientación del dispositivo
     window.EJS_defaultOptions = {
-      "desmume_screens_layout": "left/right",
+      "desmume_screens_layout": isVertical ? "top/bottom" : "left/right",
       "desmume_pointer_type": "touch",
       "desmume_pointer_device": "touch",
       "desmume_pointer_device_l": "touch",
@@ -312,8 +398,8 @@ class NDSEmulatorApp {
       "desmume_pointer_mode": "relative",
       "desmume_pointer_colour": "white",
       "melonds_touch_mode": "touch",
-      "melonds_screen_layout": "Horizontal",
-      "melonds_screens_layout": "left/right"
+      "melonds_screen_layout": isVertical ? "Top/Bottom" : "Horizontal",
+      "melonds_screens_layout": isVertical ? "top/bottom" : "left/right"
     };
 
     // Desactivar gamepad virtual duplicado interno de EmulatorJS
@@ -448,7 +534,11 @@ class NDSEmulatorApp {
   /**
    * Cambia el diseño de pantalla (Horizontal 16:9, Vertical NDS, Enfoque Táctil)
    */
-  setLayout(layoutId) {
+  setLayout(layoutId, isUserClick = false) {
+    if (isUserClick) {
+      this.userExplicitLayoutChoice = true;
+    }
+
     const container = document.getElementById('emulator-container');
     const label = document.getElementById('current-layout-name');
     if (!container) return;
@@ -467,6 +557,9 @@ class NDSEmulatorApp {
       if (chip.dataset.layout === layoutId) chip.classList.add('active');
       else chip.classList.remove('active');
     });
+
+    // Actualizar badge de estado de dispositivo
+    this.updateDeviceStatusBadge();
 
     // Sincronizar disposición de pantallas en el núcleo WebAssembly
     this.applyCoreTouchSettings();

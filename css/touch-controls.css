@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - Controles Táctiles para Safari iOS
-   touch-controls.css v0.1.8
+   touch-controls.css v0.1.9
    ========================================================================== */
 
 /* Ocultar completamente cualquier control táctil duplicado generado internamente por EmulatorJS */
@@ -26,7 +26,10 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding: 20px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+  padding-left: max(20px, env(safe-area-inset-left, 20px));
+  padding-right: max(20px, env(safe-area-inset-right, 20px));
+  padding-top: max(20px, env(safe-area-inset-top, 20px));
   touch-action: none;
   -webkit-touch-callout: none;
 }
