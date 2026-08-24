@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.4.1
+ * Versión: v0.4.2
  */
 
 class NDSEmulatorApp {
@@ -190,30 +190,65 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Cambia dinámicamente la velocidad de emulación entre límites reales (1x, 1.5x, 2x, 3x Turbo)
+   * Cambia dinámicamente la velocidad de emulación (1x, 1.5x, 2x, 3x Turbo)
    */
   changeEmulationSpeed(direction) {
-    const availableSpeids = [1.0, 1.5, 2.0, 3.0];
-    let currentIndex = availableSpeids.findIndex(s => Math.abs(s - this.emulationSpeed) < 0.1);
+    const availableSpeeds = [1.0, 1.5, 2.0, 3.0];
+    let currentIndex = availableSpeeds.findIndex(s => Math.abs(s - this.emulationSpeed) < 0.1);
     if (currentIndex === -1) currentIndex = 0;
 
     let nextIndex = currentIndex + direction;
-    if (nextIndex >= availableSpeids.length) nextIndex = availableSpeids.length - 1;
+    if (nextIndex >= availableSpeeds.length) nextIndex = availableSpeeds.length - 1;
     if (nextIndex < 0) nextIndex = 0;
 
-    this.emulationSpeed = availableSpeids[nextIndex];
+    this.emulationSpeed = availableSpeeds[nextIndex];
     this.applyEmulationSpeed(this.emulationSpeed);
+    this.updateSpeedUI();
+  }
 
+  /**
+   * Cicla la velocidad de emulación (1x -> 1.5x -> 2x -> 3x -> 1x)
+   */
+  cycleEmulationSpeed() {
+    const availableSpeeds = [1.0, 1.5, 2.0, 3.0];
+    let currentIndex = availableSpeeds.findIndex(s => Math.abs(s - this.emulationSpeed) < 0.1);
+    if (currentIndex === -1) currentIndex = 0;
+
+    let nextIndex = (currentIndex + 1) % availableSpeeds.length;
+    this.emulationSpeed = availableSpeeds[nextIndex];
+    this.applyEmulationSpeed(this.emulationSpeed);
+    this.updateSpeedUI();
+  }
+
+  /**
+   * Sincroniza todos los elementos UI de velocidad (HUD táctil, botón inferior y OSD)
+   */
+  updateSpeedUI() {
+    const speedFormatted = this.emulationSpeed === 1.0 ? '1x' : `${this.emulationSpeed}x`;
     const speedLabel = this.emulationSpeed === 1.0 ? '1x' : (this.emulationSpeed === 3.0 ? '3x (Máx)' : `${this.emulationSpeed}x`);
 
-    // Actualizar badge visual en controles táctiles
+    // 1. Actualizar badge visual en controles táctiles
     const speedBadge = document.getElementById('touch-speed-hud');
     if (speedBadge) {
-      speedBadge.textContent = `⚡ ${speedLabel}`;
+      speedBadge.textContent = `⚡ ${speedFormatted}`;
       speedBadge.style.color = this.emulationSpeed > 1 ? '#00f0ff' : '#ffb800';
+      speedBadge.style.borderColor = this.emulationSpeed > 1 ? 'rgba(0, 240, 255, 0.6)' : 'rgba(255, 184, 0, 0.5)';
     }
 
-    // Mostrar OSD superior flotante
+    // 2. Actualizar botón en la barra inferior
+    const ffBtn = document.getElementById('btn-fast-forward');
+    if (ffBtn) {
+      ffBtn.innerHTML = `⚡ ${speedFormatted}`;
+      if (this.emulationSpeed > 1.0) {
+        ffBtn.classList.add('btn-primary');
+        ffBtn.classList.remove('btn-ghost');
+      } else {
+        ffBtn.classList.remove('btn-primary');
+        ffBtn.classList.add('btn-ghost');
+      }
+    }
+
+    // 3. Mostrar OSD superior flotante
     this.showSpeedOSD(speedLabel);
   }
 
@@ -463,6 +498,20 @@ class NDSEmulatorApp {
       syncPubNubInputs();
       this.toggleSettings(true);
     });
+
+    const inGameMenuBtn = document.getElementById('btn-in-game-menu');
+    if (inGameMenuBtn) {
+      inGameMenuBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (saveModeSelector && window.saveManager) {
+          saveModeSelector.value = window.saveManager.saveMode;
+        }
+        syncPubNubInputs();
+        this.toggleSettings(true);
+      });
+    }
+
     if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', () => this.toggleSettings(false));
     if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', () => this.toggleSettings(false));
 
@@ -474,7 +523,7 @@ class NDSEmulatorApp {
     if (pauseBtn) pauseBtn.addEventListener('click', () => this.togglePause());
 
     const ffBtn = document.getElementById('btn-fast-forward');
-    if (ffBtn) ffBtn.addEventListener('click', () => this.changeEmulationSpeed(1));
+    if (ffBtn) ffBtn.addEventListener('click', () => this.cycleEmulationSpeed());
 
     const quickSaveBtn = document.getElementById('btn-quick-savestate');
     if (quickSaveBtn) quickSaveBtn.addEventListener('click', () => this.quickSaveState());
@@ -1025,20 +1074,10 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Alterna modo de avance rápido (Fast-Forward)
+   * Alterna / Cicla modo de avance de velocidad (1x -> 1.5x -> 2x -> 3x -> 1x)
    */
   toggleFastForward() {
-    this.isFastForward = !this.isFastForward;
-    const btn = document.getElementById('btn-fast-forward');
-    if (btn) {
-      btn.innerHTML = this.isFastForward ? '⚡ Normal (1x)' : '⏩ Rápido (2x)';
-      if (this.isFastForward) btn.classList.add('btn-primary');
-      else btn.classList.remove('btn-primary');
-    }
-
-    if (window.EJS_emulator && typeof window.EJS_emulator.setSpeed === 'function') {
-      window.EJS_emulator.setSpeed(this.isFastForward ? 2.0 : 1.0);
-    }
+    this.cycleEmulationSpeed();
   }
 
   /**
@@ -1354,7 +1393,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.4.1') {
+              if (key !== 'nds-emulator-v0.4.2') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1362,7 +1401,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.4.1').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.4.2').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

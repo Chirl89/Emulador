@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - Controles Táctiles para Safari iOS & Móvil
-   touch-controls.css v0.4.1 (Diseño 1/3 de Pantalla + L2/R2 Speed)
+   touch-controls.css v0.4.2 (Diseño 1/3 de Pantalla + L2/R2 Speed)
    ========================================================================== */
 
 /* Ocultar completamente cualquier control táctil duplicado generado internamente por EmulatorJS */
@@ -225,53 +225,43 @@
 }
 
 /* ==========================================================================
-   Columna Central (HUD Velocidad, Ajustes, Select / Start)
+   Columna Central (HUD Velocidad, Select / Start)
    ========================================================================== */
 .touch-center {
-  flex: 0 0 115px;
+  flex: 0 0 120px;
   justify-content: space-around;
-  padding: 2px 0;
+  padding: 4px 0;
 }
 
 .speed-hud-badge {
   background: rgba(255, 184, 0, 0.15);
   border: 1px solid rgba(255, 184, 0, 0.5);
   color: #ffb800;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 800;
-  padding: 3px 8px;
-  border-radius: 12px;
+  padding: 5px 12px;
+  border-radius: 14px;
   text-align: center;
   letter-spacing: 0.5px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.15s ease;
+  outline: none;
+  font-family: inherit;
 }
 
-.touch-actions-row {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-  width: 100%;
+.speed-hud-badge:hover {
+  background: rgba(255, 184, 0, 0.25);
+  border-color: #ffb800;
+  box-shadow: 0 0 12px rgba(255, 184, 0, 0.4);
 }
 
-.touch-settings-btn {
-  background: rgba(0, 240, 255, 0.15);
-  border: 1.5px solid var(--color-primary);
-  color: var(--color-primary);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 5px 8px;
-  border-radius: 14px;
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
-}
-
-.touch-save-btn {
-  background: rgba(0, 255, 136, 0.18);
-  border: 1.5px solid var(--color-success);
-  color: var(--color-success);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 5px 8px;
-  border-radius: 14px;
-  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+.speed-hud-badge:active {
+  transform: scale(0.94);
+  background: rgba(255, 184, 0, 0.4);
 }
 
 .meta-buttons-row {

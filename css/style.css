@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - ROG Ally & Safari Edition
-   Estilos Principales v0.4.1
+   Estilos Principales v0.4.2
    ========================================================================== */
 
 :root {
@@ -528,6 +528,46 @@ html:not(.is-emulating) .touch-controls-overlay,
   position: relative;
   background: #000000 !important;
   overflow: hidden;
+}
+
+/* Botón de Engranaje de Menú Flotante en la esquina superior derecha */
+.in-game-menu-btn {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(14, 16, 26, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(0, 240, 255, 0.5);
+  color: #00f0ff;
+  font-size: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 12px rgba(0, 240, 255, 0.25);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+.in-game-menu-btn:hover {
+  background: rgba(24, 28, 45, 0.95);
+  border-color: #00f0ff;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.6);
+  transform: scale(1.1) rotate(45deg);
+}
+
+.in-game-menu-btn:active {
+  transform: scale(0.92);
+  background: rgba(0, 240, 255, 0.35);
+  box-shadow: 0 0 22px rgba(0, 240, 255, 0.8);
 }
 
 /* Indicador OSD Superior de Velocidad (x2, x3, etc.) */

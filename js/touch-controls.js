@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Touch Controls
  * Controles virtuales en pantalla para Safari iOS / ROG Ally / Pantalla Táctil
- * Versión: v0.4.1
+ * Versión: v0.4.2
  */
 
 class TouchControls {
@@ -40,7 +40,7 @@ class TouchControls {
     const buttons = this.overlay.querySelectorAll('.touch-btn');
     buttons.forEach((btn) => {
       const keyName = btn.dataset.key;
-      if (!keyName && btn.id !== 'btn-touch-menu') return;
+      if (!keyName) return;
 
       let isPressed = false;
 
@@ -105,21 +105,18 @@ class TouchControls {
       }
     });
 
-    const menuBtn = document.getElementById('btn-touch-menu');
-    if (menuBtn) {
-      menuBtn.addEventListener('click', (e) => {
+    // Tap en el HUD central de velocidad para ciclar velocidades
+    const speedHud = document.getElementById('touch-speed-hud');
+    if (speedHud) {
+      speedHud.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (window.app) window.app.toggleSettings(true);
-      });
-    }
-
-    const saveBtn = document.getElementById('btn-touch-save');
-    if (saveBtn) {
-      saveBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (window.app) window.app.triggerSave(false, false);
+        this.triggerHaptic(30);
+        if (window.app && typeof window.app.cycleEmulationSpeed === 'function') {
+          window.app.cycleEmulationSpeed();
+        } else if (window.app && typeof window.app.changeEmulationSpeed === 'function') {
+          window.app.changeEmulationSpeed(1);
+        }
       });
     }
 
