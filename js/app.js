@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.1.2
+ * Versión: v0.1.3
  */
 
 class NDSEmulatorApp {
@@ -277,10 +277,21 @@ class NDSEmulatorApp {
     window.EJS_gameUrl = romUrl;
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoaded = true;
-    window.EJS_language = 'es-ES';
-    window.EJS_mouse = true; // Soporte táctil / stylus interactivo en pantalla inferior NDS
-    window.EJS_noAutoFocus = false;
-    
+    // Opciones del núcleo WebAssembly para Pantalla Dual y Modo Táctil Stylus
+    window.EJS_defaultOptions = {
+      "desmume_screens_layout": "left/right",
+      "desmume_pointer_type": "touch",
+      "desmume_pointer_device": "touch",
+      "desmume_pointer_device_l": "touch",
+      "desmume_pointer_device_r": "touch",
+      "desmume_touch_mode": "touch",
+      "desmume_pointer_mode": "relative",
+      "desmume_pointer_colour": "white",
+      "melonds_touch_mode": "touch",
+      "melonds_screen_layout": "Horizontal",
+      "melonds_screens_layout": "left/right"
+    };
+
     // Desactivar gamepad virtual duplicado interno de EmulatorJS
     window.EJS_VirtualGamepadSettings = { disabled: true };
     
@@ -291,12 +302,15 @@ class NDSEmulatorApp {
     };
 
     window.EJS_onGameStart = () => {
-      // Remover cualquier botón o gamepad residual del motor
+      // 1. Remover cualquier botón o gamepad residual del motor
       const duplicates = document.querySelectorAll('.ejs_virtualGamepad, .ejs_virtualGamepad_open, .ejs_dpad_main, [class*="ejs_virtualGamepad"]');
       duplicates.forEach(el => el.remove());
       if (window.EJS_emulator && window.EJS_emulator.virtualGamepad) {
         window.EJS_emulator.virtualGamepad.style.display = 'none';
       }
+
+      // 2. Aplicar opciones de núcleo para Pantalla Dual y Stylus Táctil
+      this.applyCoreTouchSettings();
     };
 
     // Cargar loader.js de EmulatorJS si no está cargado
@@ -320,6 +334,7 @@ class NDSEmulatorApp {
         }
         const duplicates = document.querySelectorAll('.ejs_virtualGamepad, .ejs_virtualGamepad_open, .ejs_dpad_main, [class*="ejs_virtualGamepad"]');
         duplicates.forEach(el => el.remove());
+        this.applyCoreTouchSettings();
       }, 500);
 
       if (window.saveManager) {
@@ -428,6 +443,37 @@ class NDSEmulatorApp {
       if (chip.dataset.layout === layoutId) chip.classList.add('active');
       else chip.classList.remove('active');
     });
+
+    // Sincronizar disposición de pantallas en el núcleo WebAssembly
+    this.applyCoreTouchSettings();
+  }
+
+  /**
+   * Configura las opciones del núcleo WebAssembly para Pantallas Duales y Stylus Táctil
+   */
+  applyCoreTouchSettings() {
+    if (!window.EJS_emulator || !window.EJS_emulator.gameManager) return;
+    const gm = window.EJS_emulator.gameManager;
+    if (typeof gm.setVariable !== 'function') return;
+
+    try {
+      // 1. Forzar modo táctil directo en DeSmuME / melonDS
+      gm.setVariable('desmume_pointer_type', 'touch');
+      gm.setVariable('desmume_pointer_device', 'touch');
+      gm.setVariable('desmume_pointer_device_l', 'touch');
+      gm.setVariable('desmume_pointer_device_r', 'touch');
+      gm.setVariable('desmume_touch_mode', 'touch');
+      gm.setVariable('desmume_pointer_mode', 'relative');
+      gm.setVariable('melonds_touch_mode', 'touch');
+
+      // 2. Disposición de pantallas duales (Horizontal vs Vertical)
+      const isHorizontal = (this.currentLayout === 'layout-horizontal');
+      gm.setVariable('desmume_screens_layout', isHorizontal ? 'left/right' : 'top/bottom');
+      gm.setVariable('melonds_screen_layout', isHorizontal ? 'Horizontal' : 'Top/Bottom');
+      console.log('Opciones de pantalla dual y stylus táctil aplicadas al núcleo:', isHorizontal ? 'Horizontal' : 'Vertical');
+    } catch (e) {
+      console.warn('Error configurando variables de núcleo:', e);
+    }
   }
 
   toggleNextLayout() {
