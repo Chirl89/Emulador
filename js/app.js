@@ -83,43 +83,47 @@ class NDSEmulatorApp {
    */
   initEngineGuard() {
     const purgeIntrusiveElements = () => {
-      // 1. Remover botones de captura, menús gigantes, trucos, red y modales de EmulatorJS
+      // 1. Remover botones de captura, barra inferior ejs_menu_bar, menús gigantes, trucos, red y modales de EmulatorJS
       const intrusive = document.querySelectorAll(
-        '.ejs_context_menu, .ejs_menu, .ejs_menu_parent, .ejs_side_menu, .ejs_cues, .ejs_cue, ' +
-        '.ejs_screen_capture, .ejs_watermark, .ejs_popup, .ejs_alert, .ejs_confirm, .ejs_modal, ' +
-        '.ejs_backdrop, .ejs_settings, .ejs_settings_parent, .ejs_netplay, .ejs_cheats, .ejs_bottom_bar, ' +
-        '.ejs_top_bar, .ejs_bar, [class*="ejs_menu"], [class*="ejs_context"], [class*="ejs_cue"], ' +
-        '[class*="ejs_capture"], [class*="ejs_modal"], [class*="ejs_backdrop"], [class*="ejs_settings"], ' +
-        '[class*="ejs_cheats"], [class*="ejs_netplay"], [class*="ejs_bar"], [id*="ejs_menu"], ' +
+        '.ejs_menu_bar, .ejs_menu_bar_hidden, .ejs_menu_button, .ejs_menu_text, .ejs_menu_text_right, ' +
+        '.ejs_list_selector, .ejs_context_menu_tab, .ejs_context_menu, .ejs_menu, .ejs_menu_parent, ' +
+        '.ejs_side_menu, .ejs_cues, .ejs_cue, .ejs_screen_capture, .ejs_watermark, .ejs_popup, ' +
+        '.ejs_alert, .ejs_confirm, .ejs_modal, .ejs_backdrop, .ejs_settings, .ejs_settings_parent, ' +
+        '.ejs_netplay, .ejs_cheats, .ejs_bottom_bar, .ejs_top_bar, .ejs_bar, [class*="ejs_menu"], ' +
+        '[class*="ejs_list"], [class*="ejs_bar"], [class*="ejs_side"], [class*="ejs_modal"], ' +
+        '[class*="ejs_backdrop"], [class*="ejs_settings"], [class*="ejs_cheats"], [class*="ejs_netplay"], ' +
+        '[class*="ejs_context"], [class*="ejs_cue"], [class*="ejs_capture"], [id*="ejs_menu"], ' +
         '.ejs_virtualGamepad, .ejs_virtualGamepad_parent, .ejs_virtualGamepad_open, ' +
         '.ejs_dpad_main, .ejs_virtualGamepad_button, [class*="ejs_virtualGamepad"], [class*="ejs_dpad"]'
       );
       intrusive.forEach(el => el.remove());
 
       if (window.EJS_emulator) {
-        if (typeof window.EJS_emulator.toggleVirtualGamepad === 'function') {
-          try { window.EJS_emulator.toggleVirtualGamepad(false); } catch (e) {}
-        }
-        if (window.EJS_emulator.virtualGamepad) {
-          window.EJS_emulator.virtualGamepad.style.display = 'none';
-        }
-        if (window.EJS_emulator.menu) {
-          try { window.EJS_emulator.menu.close?.(); } catch (e) {}
-        }
-        if (window.EJS_emulator.elements) {
-          const els = window.EJS_emulator.elements;
-          if (els.menuToggle) els.menuToggle.style.display = 'none';
-          if (els.contextMenu) els.contextMenu.style.display = 'none';
-          if (els.menu) els.menu.style.display = 'none';
-          if (els.sideMenu) els.sideMenu.style.display = 'none';
-          if (els.modal) els.modal.style.display = 'none';
-          if (els.backdrop) els.backdrop.style.display = 'none';
-          if (els.bottomBar && els.bottomBar.parent) els.bottomBar.parent.style.display = 'none';
-        }
+        try {
+          if (typeof window.EJS_emulator.toggleVirtualGamepad === 'function') {
+            window.EJS_emulator.toggleVirtualGamepad(false);
+          }
+          if (window.EJS_emulator.virtualGamepad) {
+            window.EJS_emulator.virtualGamepad.style.display = 'none';
+          }
+          if (window.EJS_emulator.menu) {
+            window.EJS_emulator.menu.close?.();
+          }
+          if (window.EJS_emulator.elements) {
+            const els = window.EJS_emulator.elements;
+            if (els.menu) els.menu.remove();
+            if (els.menuToggle) els.menuToggle.remove();
+            if (els.contextMenu && els.contextMenu.remove) els.contextMenu.remove();
+            if (els.sideMenu) els.sideMenu.remove();
+            if (els.modal) els.modal.remove();
+            if (els.backdrop) els.backdrop.remove();
+            if (els.bottomBar && els.bottomBar.parent) els.bottomBar.parent.remove();
+          }
+        } catch (e) {}
       }
     };
 
-    setInterval(purgeIntrusiveElements, 150);
+    setInterval(purgeIntrusiveElements, 80);
   }
 
   /**
@@ -612,6 +616,35 @@ class NDSEmulatorApp {
     window.EJS_disableCue = true;
     window.EJS_screenCapture = false;
     window.EJS_Buttons = false;
+    window.EJS_buttons = {
+      playPause: false,
+      play: false,
+      pause: false,
+      restart: false,
+      mute: false,
+      unmute: false,
+      settings: false,
+      fullscreen: false,
+      enterFullscreen: false,
+      exitFullscreen: false,
+      saveState: false,
+      loadState: false,
+      screenRecord: false,
+      gamepad: false,
+      cheat: false,
+      volumeSlider: false,
+      saveSavFiles: false,
+      loadSavFiles: false,
+      quickSave: false,
+      quickLoad: false,
+      screenshot: false,
+      cacheManager: false,
+      exitEmulation: false,
+      netplay: false,
+      diskButton: false,
+      contextMenu: false
+    };
+    window.EJS_buttonOpts = window.EJS_buttons;
     window.EJS_hideSettings = true;
     window.EJS_noAutoFocus = false;
     window.EJS_pauseOnUnfocus = false;
