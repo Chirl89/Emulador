@@ -105,9 +105,12 @@ class NDSEmulatorApp {
           }
           if (window.EJS_emulator.virtualGamepad) {
             window.EJS_emulator.virtualGamepad.style.display = 'none';
+            window.EJS_emulator.virtualGamepad.remove?.();
           }
           if (window.EJS_emulator.menu) {
-            window.EJS_emulator.menu.close?.();
+            window.EJS_emulator.menu.open = () => {};
+            window.EJS_emulator.menu.toggle = () => {};
+            window.EJS_emulator.menu.close = () => {};
           }
           if (window.EJS_emulator.elements) {
             const els = window.EJS_emulator.elements;
@@ -123,7 +126,7 @@ class NDSEmulatorApp {
       }
     };
 
-    setInterval(purgeIntrusiveElements, 80);
+    setInterval(purgeIntrusiveElements, 60);
   }
 
   /**
@@ -697,11 +700,31 @@ class NDSEmulatorApp {
     };
 
     window.EJS_onGameStart = async () => {
-      // 1. Remover cualquier botón o gamepad residual del motor
-      const duplicates = document.querySelectorAll('.ejs_virtualGamepad, .ejs_virtualGamepad_open, .ejs_dpad_main, [class*="ejs_virtualGamepad"]');
+      // 1. Remover cualquier botón, menú o gamepad residual del motor
+      const duplicates = document.querySelectorAll('.ejs_virtualGamepad, .ejs_virtualGamepad_open, .ejs_dpad_main, .ejs_menu_bar, .ejs_menu_button, .ejs_menu, [class*="ejs_virtualGamepad"], [class*="ejs_menu"]');
       duplicates.forEach(el => el.remove());
-      if (window.EJS_emulator && window.EJS_emulator.virtualGamepad) {
-        window.EJS_emulator.virtualGamepad.style.display = 'none';
+      if (window.EJS_emulator) {
+        try {
+          if (window.EJS_emulator.virtualGamepad) {
+            window.EJS_emulator.virtualGamepad.style.display = 'none';
+            window.EJS_emulator.virtualGamepad.remove?.();
+          }
+          if (window.EJS_emulator.menu) {
+            window.EJS_emulator.menu.open = () => {};
+            window.EJS_emulator.menu.toggle = () => {};
+            window.EJS_emulator.menu.close = () => {};
+          }
+          if (window.EJS_emulator.elements) {
+            const els = window.EJS_emulator.elements;
+            if (els.menu) els.menu.remove();
+            if (els.menuToggle) els.menuToggle.remove();
+            if (els.contextMenu && els.contextMenu.remove) els.contextMenu.remove();
+            if (els.sideMenu) els.sideMenu.remove();
+            if (els.modal) els.modal.remove();
+            if (els.backdrop) els.backdrop.remove();
+            if (els.bottomBar && els.bottomBar.parent) els.bottomBar.parent.remove();
+          }
+        } catch (e) {}
       }
 
       // 2. Aplicar opciones de núcleo para Pantalla Dual y Stylus Táctil
