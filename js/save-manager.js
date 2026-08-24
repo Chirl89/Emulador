@@ -13,6 +13,7 @@ class SaveManager {
     this.pendingSaveData = null;
     this.pendingSaveFilename = '';
     this.lastModalTriggerTime = 0;
+    this.saveMode = localStorage.getItem('nds_save_mode') || 'auto_download';
     this.initIndexedDB();
     this.initSaveConfirmModal();
   }
@@ -168,6 +169,7 @@ class SaveManager {
     const btnConfirm = document.getElementById('btn-confirm-save-download');
     const btnCancel = document.getElementById('btn-cancel-save-download');
     const btnClose = document.getElementById('btn-close-save-confirm');
+    const chkAuto = document.getElementById('chk-auto-download-sav');
 
     const closeModal = () => {
       if (modal) modal.style.display = 'none';
@@ -175,6 +177,12 @@ class SaveManager {
 
     if (btnConfirm) {
       btnConfirm.addEventListener('click', () => {
+        if (chkAuto && chkAuto.checked) {
+          this.saveMode = 'auto_download';
+          localStorage.setItem('nds_save_mode', 'auto_download');
+          const sel = document.getElementById('save-mode-selector');
+          if (sel) sel.value = 'auto_download';
+        }
         if (this.pendingSaveData && this.pendingSaveFilename) {
           this.generateSavFileDownload(this.pendingSaveData, this.pendingSaveFilename);
         }
@@ -182,7 +190,18 @@ class SaveManager {
       });
     }
 
-    if (btnCancel) btnCancel.addEventListener('click', closeModal);
+    if (btnCancel) {
+      btnCancel.addEventListener('click', () => {
+        if (chkAuto && !chkAuto.checked) {
+          this.saveMode = 'silent';
+          localStorage.setItem('nds_save_mode', 'silent');
+          const sel = document.getElementById('save-mode-selector');
+          if (sel) sel.value = 'silent';
+        }
+        closeModal();
+      });
+    }
+
     if (btnClose) btnClose.addEventListener('click', closeModal);
   }
 
@@ -201,9 +220,11 @@ class SaveManager {
     const modal = document.getElementById('save-confirm-modal');
     const nameEl = document.getElementById('save-modal-filename');
     const detailsEl = document.getElementById('save-modal-file-details');
+    const chkAuto = document.getElementById('chk-auto-download-sav');
 
     if (nameEl) nameEl.textContent = filename;
     if (detailsEl) detailsEl.textContent = filename;
+    if (chkAuto) chkAuto.checked = true;
 
     if (modal) {
       modal.style.display = 'flex';
@@ -211,7 +232,7 @@ class SaveManager {
   }
 
   /**
-   * Guarda los datos de partida (.sav) directamente en disco (sobreescribiendo) o muestra confirmación
+   * Guarda los datos de partida (.sav) directamente en disco (sobreescribiendo) o según saveMode
    * @param {Uint8Array|ArrayBuffer|Blob} saveData Datos binarios del archivo .sav
    * @param {string} [customFileName] Nombre del archivo .sav
    * @param {boolean} [isAutoSave] Si es un auto-guardado en segundo plano
@@ -260,13 +281,18 @@ class SaveManager {
       }
     }
 
-    // 4. Si se fuerza descarga manual o si se solicita mostrar confirmación emergente (iOS / PC sin carpeta vinculada)
+    // 4. Gestión según el modo de guardado configurado (iOS / Navegador web)
     if (forceDownload) {
       this.generateSavFileDownload(saveData, filename);
-    } else if (showPrompt && !isAutoSave) {
-      this.showSaveConfirmationModal(saveData, filename);
-    } else if (this.isIOS && !isAutoSave && !showPrompt) {
-      this.showSaveConfirmationModal(saveData, filename);
+    } else if (!isAutoSave) {
+      if (this.saveMode === 'auto_download') {
+        // Descarga directa sin intermediarios: solo salta la confirmación nativa de Safari
+        this.generateSavFileDownload(saveData, filename);
+      } else if (this.saveMode === 'ask_modal' || showPrompt) {
+        this.showSaveConfirmationModal(saveData, filename);
+      } else if (this.saveMode === 'silent') {
+        this.showToast(`💾 Partida guardada en memoria interna: ${filename}`, 'success');
+      }
     }
 
     return true;

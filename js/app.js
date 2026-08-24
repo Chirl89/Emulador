@@ -408,7 +408,23 @@ class NDSEmulatorApp {
     const settingsBtn = document.getElementById('btn-settings');
     const closeSettingsBtn = document.getElementById('btn-close-settings');
     const saveSettingsBtn = document.getElementById('btn-save-settings');
-    if (settingsBtn) settingsBtn.addEventListener('click', () => this.toggleSettings(true));
+    const saveModeSelector = document.getElementById('save-mode-selector');
+
+    if (saveModeSelector && window.saveManager) {
+      saveModeSelector.value = window.saveManager.saveMode;
+      saveModeSelector.addEventListener('change', (e) => {
+        window.saveManager.saveMode = e.target.value;
+        localStorage.setItem('nds_save_mode', e.target.value);
+        window.saveManager.showToast(`💾 Modo de guardado: ${e.target.options[e.target.selectedIndex].text}`, 'info');
+      });
+    }
+
+    if (settingsBtn) settingsBtn.addEventListener('click', () => {
+      if (saveModeSelector && window.saveManager) {
+        saveModeSelector.value = window.saveManager.saveMode;
+      }
+      this.toggleSettings(true);
+    });
     if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', () => this.toggleSettings(false));
     if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', () => this.toggleSettings(false));
 
@@ -1110,8 +1126,8 @@ class NDSEmulatorApp {
         });
         if ('caches' in window) {
           caches.keys().then((keys) => {
-            keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.3.12') {
+             keys.forEach((key) => {
+              if (key !== 'nds-emulator-v0.3.13') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1119,7 +1135,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.3.12').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.3.13').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
