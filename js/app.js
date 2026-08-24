@@ -1035,25 +1035,23 @@ class NDSEmulatorApp {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         // En entorno local (Live Server), actualizar y limpiar cachés obsoletas automáticamente
-        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-          navigator.serviceWorker.getRegistrations().then((registrations) => {
-            for (let registration of registrations) {
-              registration.update();
-            }
-          });
-          if ('caches' in window) {
-            caches.keys().then((keys) => {
-              keys.forEach((key) => {
-                if (key !== 'nds-emulator-v0.2.0') {
-                  console.log('Purgando caché obsoleta:', key);
-                  caches.delete(key);
-                }
-              });
-            });
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (let registration of registrations) {
+            registration.update();
           }
+        });
+        if ('caches' in window) {
+          caches.keys().then((keys) => {
+            keys.forEach((key) => {
+              if (key !== 'nds-emulator-v0.3.11') {
+                console.log('Purgando caché obsoleta:', key);
+                caches.delete(key);
+              }
+            });
+          });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.2.0').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.3.11').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
