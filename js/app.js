@@ -79,15 +79,18 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Oculta de forma permanente y segura cualquier botón virtual, menú contextual o captura del motor
+   * Oculta de forma permanente y segura cualquier menú modal, truco, menú contextual o captura del motor
    */
   initEngineGuard() {
     const purgeIntrusiveElements = () => {
-      // 1. Remover botones de captura, menús contextuales, cues y marcas intrusivas de EmulatorJS
+      // 1. Remover botones de captura, menús gigantes, trucos, red y modales de EmulatorJS
       const intrusive = document.querySelectorAll(
-        '.ejs_context_menu, .ejs_menu, .ejs_cues, .ejs_cue, .ejs_screen_capture, ' +
-        '.ejs_watermark, .ejs_popup, .ejs_alert, .ejs_confirm, [class*="ejs_menu"], ' +
-        '[class*="ejs_context"], [class*="ejs_cue"], [class*="ejs_capture"], ' +
+        '.ejs_context_menu, .ejs_menu, .ejs_menu_parent, .ejs_side_menu, .ejs_cues, .ejs_cue, ' +
+        '.ejs_screen_capture, .ejs_watermark, .ejs_popup, .ejs_alert, .ejs_confirm, .ejs_modal, ' +
+        '.ejs_backdrop, .ejs_settings, .ejs_settings_parent, .ejs_netplay, .ejs_cheats, .ejs_bottom_bar, ' +
+        '.ejs_top_bar, .ejs_bar, [class*="ejs_menu"], [class*="ejs_context"], [class*="ejs_cue"], ' +
+        '[class*="ejs_capture"], [class*="ejs_modal"], [class*="ejs_backdrop"], [class*="ejs_settings"], ' +
+        '[class*="ejs_cheats"], [class*="ejs_netplay"], [class*="ejs_bar"], [id*="ejs_menu"], ' +
         '.ejs_virtualGamepad, .ejs_virtualGamepad_parent, .ejs_virtualGamepad_open, ' +
         '.ejs_dpad_main, .ejs_virtualGamepad_button, [class*="ejs_virtualGamepad"], [class*="ejs_dpad"]'
       );
@@ -100,14 +103,23 @@ class NDSEmulatorApp {
         if (window.EJS_emulator.virtualGamepad) {
           window.EJS_emulator.virtualGamepad.style.display = 'none';
         }
+        if (window.EJS_emulator.menu) {
+          try { window.EJS_emulator.menu.close?.(); } catch (e) {}
+        }
         if (window.EJS_emulator.elements) {
-          if (window.EJS_emulator.elements.menuToggle) window.EJS_emulator.elements.menuToggle.style.display = 'none';
-          if (window.EJS_emulator.elements.contextMenu) window.EJS_emulator.elements.contextMenu.style.display = 'none';
+          const els = window.EJS_emulator.elements;
+          if (els.menuToggle) els.menuToggle.style.display = 'none';
+          if (els.contextMenu) els.contextMenu.style.display = 'none';
+          if (els.menu) els.menu.style.display = 'none';
+          if (els.sideMenu) els.sideMenu.style.display = 'none';
+          if (els.modal) els.modal.style.display = 'none';
+          if (els.backdrop) els.backdrop.style.display = 'none';
+          if (els.bottomBar && els.bottomBar.parent) els.bottomBar.parent.style.display = 'none';
         }
       }
     };
 
-    setInterval(purgeIntrusiveElements, 250);
+    setInterval(purgeIntrusiveElements, 150);
   }
 
   /**
@@ -596,13 +608,16 @@ class NDSEmulatorApp {
     window.EJS_loadState = null;
     window.EJS_externalFiles = null; // Evita que downloadFile de EmulatorJS se bloquee con blobs en Safari
 
-    // Desactivar capturas de pantalla, menús intrusivos, cues y marcas de agua de EmulatorJS
+    // Desactivar capturas de pantalla, menús intrusivos, cues, trucos y marcas de agua de EmulatorJS
     window.EJS_disableCue = true;
     window.EJS_screenCapture = false;
     window.EJS_Buttons = false;
     window.EJS_hideSettings = true;
-    window.EJS_noAutoFocus = true;
+    window.EJS_noAutoFocus = false;
+    window.EJS_pauseOnUnfocus = false;
     window.EJS_watermark = false;
+    window.EJS_disableMenu = true;
+    window.EJS_VirtualGamepadSettings = { disabled: true };
 
     // Configuración global para EmulatorJS
     window.EJS_player = '#game-player';

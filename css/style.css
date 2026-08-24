@@ -445,7 +445,7 @@ html, body {
   background: #000 !important;
 }
 
-/* Ocultar completamente el gamepad virtual duplicado interno de EmulatorJS */
+/* Ocultar completamente cualquier menú modal, barra, truco o ventana emergente interna de EmulatorJS */
 .ejs_virtualGamepad,
 .ejs_virtualGamepad_open,
 .ejs_dpad_main,
@@ -453,7 +453,29 @@ html, body {
 .ejs_virtualGamepad_left,
 .ejs_virtualGamepad_right,
 .ejs_virtualGamepad_dpad,
-[class*="ejs_virtualGamepad"] {
+.ejs_context_menu,
+.ejs_menu,
+.ejs_menu_parent,
+.ejs_side_menu,
+.ejs_modal,
+.ejs_backdrop,
+.ejs_settings,
+.ejs_settings_parent,
+.ejs_netplay,
+.ejs_cheats,
+.ejs_bottom_bar,
+.ejs_top_bar,
+.ejs_bar,
+[class*="ejs_virtualGamepad"],
+[class*="ejs_menu"],
+[class*="ejs_side_menu"],
+[class*="ejs_modal"],
+[class*="ejs_backdrop"],
+[class*="ejs_settings"],
+[class*="ejs_cheats"],
+[class*="ejs_netplay"],
+[class*="ejs_bar"],
+[id*="ejs_menu"] {
   display: none !important;
   opacity: 0 !important;
   pointer-events: none !important;
@@ -491,7 +513,7 @@ html, body {
   object-fit: contain !important;
 }
 
-/* Limpieza total de pantalla y ocultación de cabecera/barra inferior durante la emulación */
+/* Limpieza total de pantalla y soporte completo para Notch / Dynamic Island en iOS */
 html.is-emulating .top-header,
 body.is-emulating .top-header,
 .is-emulating .top-header,
@@ -521,15 +543,15 @@ body.is-emulating .main-content,
   overflow: hidden !important;
 }
 
-/* 2/3 de pantalla dedicados exactamente a las 2 pantallas de NDS (1/3 superior y 1/3 inferior) */
+/* 2/3 de pantalla dedicados exactamente a las 2 pantallas de NDS (1/3 superior y 1/3 inferior), salvando el Notch */
 html.is-emulating .emulator-container,
 body.is-emulating .emulator-container,
 .is-emulating .emulator-container,
 #app.is-emulating .emulator-container {
   width: 100vw !important;
-  height: calc(100dvh * 2 / 3) !important;
-  max-height: calc(100dvh * 2 / 3) !important;
-  flex: 0 0 calc(100dvh * 2 / 3) !important;
+  height: calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 2 / 3 + env(safe-area-inset-top, 0px)) !important;
+  max-height: calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 2 / 3 + env(safe-area-inset-top, 0px)) !important;
+  flex: 0 0 calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 2 / 3 + env(safe-area-inset-top, 0px)) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -537,7 +559,11 @@ body.is-emulating .emulator-container,
   position: relative !important;
   overflow: hidden !important;
   margin: 0 !important;
-  padding: 0 !important;
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding-bottom: 0 !important;
+  padding-left: env(safe-area-inset-left, 0px) !important;
+  padding-right: env(safe-area-inset-right, 0px) !important;
+  box-sizing: border-box !important;
 }
 
 html.is-emulating .emulator-container .game-player,
@@ -553,19 +579,21 @@ body.is-emulating .emulator-container .game-player,
   padding: 0 !important;
 }
 
-/* 1/3 de pantalla dedicado exclusivamente a los controles táctiles */
+/* 1/3 de pantalla dedicado exclusivamente a los controles táctiles, salvando la barra inferior de iOS */
 html.is-emulating .touch-controls-overlay,
 body.is-emulating .touch-controls-overlay,
 .is-emulating .touch-controls-overlay,
 #app.is-emulating .touch-controls-overlay {
   width: 100vw !important;
-  height: calc(100dvh / 3) !important;
-  max-height: calc(100dvh / 3) !important;
-  flex: 0 0 calc(100dvh / 3) !important;
+  height: calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 3 + env(safe-area-inset-bottom, 0px)) !important;
+  max-height: calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 3 + env(safe-area-inset-bottom, 0px)) !important;
+  flex: 0 0 calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 3 + env(safe-area-inset-bottom, 0px)) !important;
   display: flex !important;
   position: relative !important;
   margin: 0 !important;
-  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 8px)) 12px !important;
+  padding: 4px 12px calc(4px + env(safe-area-inset-bottom, 8px)) 12px !important;
+  padding-left: max(12px, env(safe-area-inset-left, 12px)) !important;
+  padding-right: max(12px, env(safe-area-inset-right, 12px)) !important;
   box-sizing: border-box !important;
 }
 
