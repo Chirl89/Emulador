@@ -174,6 +174,11 @@ class NDSEmulatorApp {
     const fileInput = document.getElementById('rom-file-input');
     const browseBtn = document.getElementById('btn-browse-rom');
     const openFolderBtn = document.getElementById('btn-open-folder-game');
+    const forceRefreshBtn = document.getElementById('btn-force-git-refresh');
+
+    if (forceRefreshBtn) {
+      forceRefreshBtn.addEventListener('click', () => this.forceGitRefresh());
+    }
 
     if (browseBtn && fileInput) {
       browseBtn.addEventListener('click', () => fileInput.click());
@@ -458,14 +463,56 @@ class NDSEmulatorApp {
   }
 
   /**
+   * Fuerza la actualización inmediata desde GitHub limpiando Service Workers y cachés
+   */
+  async forceGitRefresh() {
+    if (window.saveManager) {
+      window.saveManager.showToast('🔄 Purgando caché y descargando última versión de GitHub...', 'info');
+    }
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (let reg of registrations) {
+          await reg.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch (err) {
+      console.warn('Error purgando caché:', err);
+    }
+    setTimeout(() => {
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.location.href = cleanUrl + '?refresh=' + Date.now();
+    }, 350);
+  }
+
+  /**
    * Carga uno o varios archivos seleccionados (ROM .nds y/o partida .sav previa)
    */
   async loadRomFiles(fileList) {
     if (!fileList || fileList.length === 0) return;
     const files = Array.from(fileList);
 
-    let romFile = files.find(f => f.name.match(/\.(nds|zip|7z)$/i));
-    let savFile = files.find(f => f.name.match(/\.(sav|dsv)$/i));
+    // Buscar ROM de Nintendo DS (flexible con .nds, .NDS, .zip, .ZIP, .7z)
+    let romFile = files.find(f => {
+      const n = (f.name || '').toLowerCase();
+      return n.endsWith('.nds') || n.endsWith('.zip') || n.endsWith('.7z') || f.name.match(/\.(nds|zip|7z)$/i);
+    });
+
+    // Buscar archivo .sav o .dsv
+    let savFile = files.find(f => {
+      const n = (f.name || '').toLowerCase();
+      return n.endsWith('.sav') || n.endsWith('.dsv') || f.name.match(/\.(sav|dsv)$/i);
+    });
+
+    // Si no se encontró por extensión exacta pero solo hay 1 archivo binario cargado, tratarlo como ROM
+    if (!romFile && files.length === 1 && !savFile) {
+      romFile = files[0];
+      console.log('Asumiendo archivo único como ROM NDS:', romFile.name);
+    }
 
     // Si el usuario incluyó un archivo .sav de su iPhone/PC, guardarlo en memoria primero
     if (savFile && window.saveManager) {

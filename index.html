@@ -14,8 +14,8 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e60012'/><rect x='15' y='18' width='70' height='30' rx='5' fill='%23111'/><rect x='15' y='52' width='70' height='30' rx='5' fill='%23111'/><circle cx='30' cy='33' r='4' fill='%2300f0ff'/><circle cx='70' cy='67' r='4' fill='%23ff0055'/></svg>">
 
   <!-- Estilos con cache-busting -->
-  <link rel="stylesheet" href="css/style.css?v=0.2.4">
-  <link rel="stylesheet" href="css/touch-controls.css?v=0.2.4">
+  <link rel="stylesheet" href="css/style.css?v=0.2.5">
+  <link rel="stylesheet" href="css/touch-controls.css?v=0.2.5">
 
   <!-- Escudo indestructible contra controles virtuales duplicados de EmulatorJS -->
   <style id="ejs-override-shield">
@@ -48,7 +48,7 @@
         <div class="logo-badge">NDS</div>
         <div class="title-group">
           <h1>NDS Web Emulator</h1>
-          <span class="version-badge" id="app-version">v0.2.4</span>
+          <span class="version-badge" id="app-version">v0.2.5</span>
         </div>
       </div>
 
@@ -114,6 +114,13 @@
             </div>
           </div>
 
+          <!-- Botón de actualización inmediata desde GitHub (Evita cachés en Safari iOS) -->
+          <div style="margin-bottom: 16px; display: flex; justify-content: center;">
+            <button class="btn btn-secondary btn-sm" id="btn-force-git-refresh" title="Limpiar caché de Safari y forzar descarga de la última versión de GitHub" style="border-color: var(--color-primary); color: var(--color-primary); box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);">
+              🔄 Refrescar y Descargar Última Versión de GitHub
+            </button>
+          </div>
+
           <!-- Zona de Arrastrar y Soltar / Cargar Archivo -->
           <div class="drop-zone" id="rom-drop-zone">
             <div class="drop-icon">📥</div>
@@ -121,7 +128,8 @@
               <h3>Arrastra aquí tu juego <code>.nds</code> o haz clic para cargar</h3>
               <p>Ejemplo: <code>C:\Users\cgzla\Documents\SoulSilver\Pokemon - Edicion Plata SoulSilver.nds</code></p>
             </div>
-            <input type="file" id="rom-file-input" accept=".nds,.zip,.7z,.sav,.dsv" multiple style="display: none;">
+            <!-- Accept universal para que Safari iOS no deshabilite archivos .nds -->
+            <input type="file" id="rom-file-input" accept=".nds,.NDS,.zip,.ZIP,.7z,.7Z,.sav,.SAV,.dsv,.DSV,application/octet-stream,application/x-nintendo-ds-rom,application/zip,application/x-zip-compressed,*/*" multiple style="display: none;">
             
             <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
               <button class="btn btn-glow btn-lg" id="btn-browse-rom">
@@ -322,10 +330,10 @@
   </div>
 
   <!-- Scripts del Emulador con cache-busting -->
-  <script src="js/save-manager.js?v=0.2.4"></script>
-  <script src="js/gamepad.js?v=0.2.4"></script>
-  <script src="js/touch-controls.js?v=0.2.4"></script>
-  <script src="js/app.js?v=0.2.4"></script>
+  <script src="js/save-manager.js?v=0.2.5"></script>
+  <script src="js/gamepad.js?v=0.2.5"></script>
+  <script src="js/touch-controls.js?v=0.2.5"></script>
+  <script src="js/app.js?v=0.2.5"></script>
 </body>
 </html>
 
