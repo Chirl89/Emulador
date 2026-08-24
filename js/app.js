@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.4.0
+ * Versión: v0.4.1
  */
 
 class NDSEmulatorApp {
@@ -707,7 +707,24 @@ class NDSEmulatorApp {
   /**
    * Inicializa el núcleo WASM con la ROM proporcionada
    */
-  async startEmulator(file) {
+  async startEmulator(file, customRomName) {
+    if (customRomName) {
+      this.currentRomName = customRomName;
+    } else if (file && file.name) {
+      this.currentRomName = file.name;
+    } else if (!this.currentRomName) {
+      this.currentRomName = 'Pokemon - Edicion Plata SoulSilver.nds';
+    }
+
+    // Asegurar que el nombre tenga extensión para que el core la reconozca
+    if (!this.currentRomName.match(/\.(nds|zip|7z)$/i)) {
+      this.currentRomName += '.nds';
+    }
+
+    if (window.saveManager) {
+      window.saveManager.currentRomName = this.currentRomName;
+    }
+
     const welcomeScreen = document.getElementById('welcome-screen');
     const emulatorContainer = document.getElementById('emulator-container');
     const gameplayBar = document.getElementById('gameplay-bar');
@@ -737,7 +754,11 @@ class NDSEmulatorApp {
     // Limpiar contenedor
     gamePlayer.innerHTML = '';
 
-    const romUrl = URL.createObjectURL(file);
+    let romBlob = file;
+    if (!(romBlob instanceof Blob) && !(romBlob instanceof File)) {
+      romBlob = new Blob([file], { type: 'application/octet-stream' });
+    }
+    const romUrl = URL.createObjectURL(romBlob);
     const isVertical = (this.currentLayout === 'layout-vertical');
     const baseName = window.saveManager ? window.saveManager.sanitizeName(this.currentRomName) : 'game';
 
@@ -790,11 +811,27 @@ class NDSEmulatorApp {
     const loadingOverlay = document.getElementById('emulator-loading-overlay');
     const loadingStatus = document.getElementById('emulator-loading-status');
     if (loadingOverlay) loadingOverlay.classList.remove('hidden');
-    if (loadingStatus) loadingStatus.textContent = `Cargando ${this.currentRomName || 'Nintendo DS'}...`;
+    if (loadingStatus) loadingStatus.textContent = `Cargando ${this.currentRomName}...`;
+
+    // Timeout y observador de seguridad para asegurar que el overlay no se quede pillado
+    clearTimeout(this.loadingSafetyTimeout);
+    this.loadingSafetyTimeout = setTimeout(() => {
+      if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    }, 4500);
+
+    const checkCanvasInterval = setInterval(() => {
+      const cvs = document.querySelector('#game-player canvas');
+      if (cvs) {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+        clearInterval(checkCanvasInterval);
+      }
+    }, 300);
+    setTimeout(() => clearInterval(checkCanvasInterval), 10000);
 
     // Configuración global para EmulatorJS
     window.EJS_player = '#game-player';
     window.EJS_core = this.selectedCore; // 'desmume' o 'melonds'
+    window.EJS_gameName = this.currentRomName;
     window.EJS_gameUrl = romUrl;
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoad = true;
@@ -1221,22 +1258,36 @@ class NDSEmulatorApp {
       const launchGame = async (e) => {
         if (e) e.stopPropagation();
         try {
-          if (rom.data) {
-            let romBlob = rom.data;
-            if (!(romBlob instanceof Blob) && !(romBlob instanceof File)) {
-              romBlob = new Blob([rom.data], { type: 'application/octet-stream' });
-              romBlob.name = rom.name;
+          if (rom && rom.data) {
+            const romName = rom.name || 'Pokemon - Edicion Plata SoulSilver.nds';
+            let romBlob;
+            
+            if (rom.data instanceof File) {
+              romBlob = rom.data;
+            } else if (rom.data instanceof Blob) {
+              romBlob = new File([rom.data], romName, { type: 'application/octet-stream' });
+            } else if (rom.data instanceof Uint8Array || rom.data instanceof ArrayBuffer) {
+              romBlob = new File([rom.data], romName, { type: 'application/octet-stream' });
+            } else {
+              romBlob = new File([rom.data], romName, { type: 'application/octet-stream' });
             }
+
+            this.currentRomName = romName;
+            this.currentRomBlob = romBlob;
+
             if (window.saveManager) {
-              window.saveManager.updateRomLastPlayed(rom.name);
+              window.saveManager.currentRomName = romName;
+              window.saveManager.updateRomLastPlayed(romName);
             }
-            await this.loadRomFile(romBlob);
+
+            console.log(`[Recent ROM Launcher] Lanzando juego directo: ${romName} (${romBlob.size} bytes)`);
+            await this.startEmulator(romBlob, romName);
           } else {
-            alert('Los datos de este juego no se encuentran en memoria. Por favor, selecciónalo nuevamente con "Seleccionar ROM".');
+            alert('Los datos de este juego no se encuentran en memoria. Por favor, vuelve a cargarlo con "Seleccionar ROM".');
           }
         } catch (err) {
           console.error('Error lanzando ROM reciente:', err);
-          alert('Error al abrir el juego. Por favor, selecciona el archivo .nds nuevamente.');
+          alert('Error al abrir el juego. Por favor, selecciona el archivo .nds nuevamente con el botón "Seleccionar ROM".');
         }
       };
 
@@ -1303,7 +1354,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.4.0') {
+              if (key !== 'nds-emulator-v0.4.1') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1311,7 +1362,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.4.0').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.4.1').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

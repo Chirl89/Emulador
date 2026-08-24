@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Save Manager
  * Gestor de partidas, almacenamiento de ROMs recientes y exportación .sav en iOS
- * Versión: v0.4.0
+ * Versión: v0.4.1
  */
 
 class SaveManager {
@@ -568,25 +568,51 @@ class SaveManager {
   }
 
   /**
-   * Guarda una ROM en el almacenamiento persistente de IndexedDB
+   * Guarda una ROM en el almacenamiento persistente de IndexedDB (como datos binarios reales Uint8Array)
    */
   async saveRom(file) {
     if (!this.db || !file) return;
     try {
-      const cleanTitle = (file.name || 'Juego NDS').replace(/\.(nds|zip|7z)$/i, '');
+      const name = file.name || this.currentRomName || 'Pokemon - Edicion Plata SoulSilver.nds';
+      const cleanTitle = name.replace(/\.(nds|zip|7z)$/i, '');
+
+      let arrayBuffer;
+      if (file instanceof ArrayBuffer) {
+        arrayBuffer = file;
+      } else if (file instanceof Uint8Array) {
+        arrayBuffer = file.buffer;
+      } else if (typeof file.arrayBuffer === 'function') {
+        arrayBuffer = await file.arrayBuffer();
+      } else {
+        const reader = new FileReader();
+        arrayBuffer = await new Promise((res, rej) => {
+          reader.onload = () => res(reader.result);
+          reader.onerror = rej;
+          reader.readAsArrayBuffer(file);
+        });
+      }
+
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        console.warn('saveRom: Datos de ROM vacíos, ignorando guardado.');
+        return;
+      }
+
+      const uint8 = new Uint8Array(arrayBuffer);
       const record = {
-        name: file.name,
+        name: name,
         cleanTitle: cleanTitle,
-        size: file.size || 0,
+        size: file.size || uint8.byteLength || 0,
         lastPlayed: Date.now(),
-        data: file
+        data: uint8
       };
+
       const tx = this.db.transaction('roms', 'readwrite');
       tx.objectStore('roms').put(record);
       await new Promise((res) => {
         tx.oncomplete = res;
         tx.onerror = res;
       });
+      console.log(`[SaveManager] ROM guardada permanentemente en IndexedDB: ${name} (${record.size} bytes)`);
     } catch (err) {
       console.warn('Error guardando ROM en IndexedDB:', err);
     }
