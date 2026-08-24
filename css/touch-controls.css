@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - Controles Táctiles para Safari iOS & Móvil
-   touch-controls.css v0.2.2 (Diseño 1/3 de Pantalla + L2/R2 Speed)
+   touch-controls.css v0.4.0 (Diseño 1/3 de Pantalla + L2/R2 Speed)
    ========================================================================== */
 
 /* Ocultar completamente cualquier control táctil duplicado generado internamente por EmulatorJS */
@@ -286,5 +286,20 @@
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.5px;
+}
+
+/* Ocultar mando virtual estrictamente en la pantalla de bienvenida / cuando no hay juego activo */
+body:not(.is-emulating) .touch-controls-overlay,
+html:not(.is-emulating) .touch-controls-overlay,
+#app:not(.is-emulating) .touch-controls-overlay {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 

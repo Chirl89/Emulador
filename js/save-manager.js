@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Save Manager
- * Gestor de partidas, sobreescritura automática en disco y exportación .sav en iOS
- * Versión: v0.2.0
+ * Gestor de partidas, almacenamiento de ROMs recientes y exportación .sav en iOS
+ * Versión: v0.4.0
  */
 
 class SaveManager {
@@ -19,11 +19,11 @@ class SaveManager {
   }
 
   /**
-   * Inicializa IndexedDB para almacenamiento local de respaldo y savestates
+   * Inicializa IndexedDB para almacenamiento local de respaldo, savestates y ROMs recientes
    */
   async initIndexedDB() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('NDSEmulatorDB', 2);
+      const request = indexedDB.open('NDSEmulatorDB', 3);
 
       request.onupgradeneeded = (e) => {
         const db = e.target.result;
@@ -36,12 +36,18 @@ class SaveManager {
         if (!db.objectStoreNames.contains('handles')) {
           db.createObjectStore('handles', { keyPath: 'id' });
         }
+        if (!db.objectStoreNames.contains('roms')) {
+          db.createObjectStore('roms', { keyPath: 'name' });
+        }
       };
 
       request.onsuccess = (e) => {
         this.db = e.target.result;
         this.loadSavedHandle();
         this.updatePlatformStatusUI();
+        if (window.app && typeof window.app.renderRecentRoms === 'function') {
+          window.app.renderRecentRoms();
+        }
         resolve(this.db);
       };
 
@@ -559,6 +565,89 @@ class SaveManager {
     } else {
       this.showToast('⚠️ No se encontraron datos de guardado aún. Guarda primero dentro del juego.', 'warning');
     }
+  }
+
+  /**
+   * Guarda una ROM en el almacenamiento persistente de IndexedDB
+   */
+  async saveRom(file) {
+    if (!this.db || !file) return;
+    try {
+      const cleanTitle = (file.name || 'Juego NDS').replace(/\.(nds|zip|7z)$/i, '');
+      const record = {
+        name: file.name,
+        cleanTitle: cleanTitle,
+        size: file.size || 0,
+        lastPlayed: Date.now(),
+        data: file
+      };
+      const tx = this.db.transaction('roms', 'readwrite');
+      tx.objectStore('roms').put(record);
+      await new Promise((res) => {
+        tx.oncomplete = res;
+        tx.onerror = res;
+      });
+    } catch (err) {
+      console.warn('Error guardando ROM en IndexedDB:', err);
+    }
+  }
+
+  /**
+   * Obtiene todas las ROMs guardadas ordenadas por última jugada
+   */
+  async getAllRecentRoms() {
+    if (!this.db) return [];
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('roms', 'readonly');
+        const store = tx.objectStore('roms');
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const list = req.result || [];
+          list.sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
+          resolve(list);
+        };
+        req.onerror = () => resolve([]);
+      } catch (err) {
+        resolve([]);
+      }
+    });
+  }
+
+  /**
+   * Elimina una ROM de la lista de recientes en IndexedDB
+   */
+  async deleteRom(name) {
+    if (!this.db) return false;
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('roms', 'readwrite');
+        const req = tx.objectStore('roms').delete(name);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => resolve(false);
+      } catch (err) {
+        resolve(false);
+      }
+    });
+  }
+
+  /**
+   * Actualiza el timestamp de última partida de una ROM
+   */
+  async updateRomLastPlayed(name) {
+    if (!this.db || !name) return;
+    try {
+      const tx = this.db.transaction('roms', 'readwrite');
+      const store = tx.objectStore('roms');
+      const req = store.get(name);
+      req.onsuccess = () => {
+        if (req.result) {
+          const record = req.result;
+          record.lastPlayed = Date.now();
+          store.put(record);
+        }
+      };
+    } catch (err) {}
   }
 
   sanitizeName(name) {

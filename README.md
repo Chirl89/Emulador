@@ -1,15 +1,16 @@
 # 🎮 NDS Web Emulator (ROG Ally & Safari Edition)
 
-[![Version](https://img.shields.io/badge/version-v0.3.16-00f0ff.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-v0.4.0-00f0ff.svg)](./VERSION)
 [![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS%20|%20Opera%20GX-ff0055.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssembly (DeSmuME / melonDS core), optimizado específicamente para:
-1. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
-2. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
-3. **Safari en iOS / iPadOS / macOS**: PWA instalable con controles virtuales en pantalla, respuesta háptica y compatibilidad total.
-4. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
-5. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
+1. **Acceso Directo a ROMs Recientes (.nds)**: Lista de juegos jugados en orden de última partida para jugar con 1 clic sin tener que navegar por archivos ni volver a seleccionarlos.
+2. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
+3. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
+4. **Safari en iOS / iPadOS / macOS**: PWA instalable con controles virtuales en pantalla, respuesta háptica y compatibilidad total.
+5. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
+6. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
 
 ---
 

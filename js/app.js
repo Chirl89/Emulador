@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.2.0
+ * Versión: v0.4.0
  */
 
 class NDSEmulatorApp {
@@ -255,12 +255,11 @@ class NDSEmulatorApp {
   }
 
   initUI() {
-    // 1. Selector de ROM y Drag & Drop
-    const dropZone = document.getElementById('rom-drop-zone');
+    // 1. Selector de ROM, Actualización GitHub y Drag & Drop
     const fileInput = document.getElementById('rom-file-input');
     const browseBtn = document.getElementById('btn-browse-rom');
-    const openFolderBtn = document.getElementById('btn-open-folder-game');
     const forceRefreshBtn = document.getElementById('btn-force-git-refresh');
+    const welcomeCard = document.getElementById('welcome-card') || document.getElementById('welcome-screen');
 
     if (forceRefreshBtn) {
       forceRefreshBtn.addEventListener('click', () => this.forceGitRefresh());
@@ -268,10 +267,6 @@ class NDSEmulatorApp {
 
     if (browseBtn && fileInput) {
       browseBtn.addEventListener('click', () => fileInput.click());
-    }
-
-    if (openFolderBtn) {
-      openFolderBtn.addEventListener('click', () => this.openGameFromFolder());
     }
 
     if (fileInput) {
@@ -282,24 +277,27 @@ class NDSEmulatorApp {
       });
     }
 
-    if (dropZone) {
-      dropZone.addEventListener('dragover', (e) => {
+    if (welcomeCard) {
+      welcomeCard.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.classList.add('drag-over');
+        welcomeCard.classList.add('drag-over');
       });
 
-      dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('drag-over');
+      welcomeCard.addEventListener('dragleave', () => {
+        welcomeCard.classList.remove('drag-over');
       });
 
-      dropZone.addEventListener('drop', (e) => {
+      welcomeCard.addEventListener('drop', (e) => {
         e.preventDefault();
-        dropZone.classList.remove('drag-over');
+        welcomeCard.classList.remove('drag-over');
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
           this.loadRomFiles(e.dataTransfer.files);
         }
       });
     }
+
+    // Renderizar la lista inicial de ROMs jugadas recientemente
+    this.renderRecentRoms();
 
     // 2. Vinculación de carpeta SoulSilver
     const linkFolderBtn = document.getElementById('btn-link-soulsilver-folder');
@@ -690,6 +688,8 @@ class NDSEmulatorApp {
       this.currentRomBlob = romFile;
       if (window.saveManager) {
         window.saveManager.currentRomName = romFile.name;
+        await window.saveManager.saveRom(romFile);
+        this.renderRecentRoms();
       }
       await this.startEmulator(romFile);
     } else if (!savFile) {
@@ -728,6 +728,11 @@ class NDSEmulatorApp {
     document.body.classList.add('is-emulating');
     if (appEl) appEl.classList.add('is-emulating');
     this.isEmulating = true;
+
+    // Notificar a touchControls para mostrar controles virtuales si corresponde
+    if (window.touchControls && typeof window.touchControls.onGameStart === 'function') {
+      window.touchControls.onGameStart();
+    }
 
     // Limpiar contenedor
     gamePlayer.innerHTML = '';
@@ -1153,6 +1158,137 @@ class NDSEmulatorApp {
   }
 
   /**
+   * Renderiza la lista de juegos jugados en orden de última partida con acceso directo
+   */
+  async renderRecentRoms() {
+    const container = document.getElementById('recent-roms-list');
+    const countBadge = document.getElementById('recent-roms-count');
+    if (!container) return;
+
+    let roms = [];
+    if (window.saveManager && typeof window.saveManager.getAllRecentRoms === 'function') {
+      try {
+        roms = await window.saveManager.getAllRecentRoms();
+      } catch (e) {
+        console.warn('Error obteniendo ROMs recientes:', e);
+      }
+    }
+
+    if (countBadge) {
+      if (roms && roms.length > 0) {
+        countBadge.textContent = `${roms.length} ${roms.length === 1 ? 'juego' : 'juegos'}`;
+        countBadge.style.display = 'inline-block';
+      } else {
+        countBadge.style.display = 'none';
+      }
+    }
+
+    if (!roms || roms.length === 0) {
+      container.innerHTML = `
+        <div class="recent-roms-empty" id="recent-roms-empty">
+          <p>No hay juegos recientes guardados en memoria.</p>
+          <p class="empty-subtext">Selecciona una ROM (.nds) a continuación para comenzar.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = '';
+
+    roms.forEach((rom) => {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'recent-rom-item';
+      itemEl.setAttribute('title', `Pulsar para jugar directamente a ${rom.cleanTitle || rom.name}`);
+
+      const sizeStr = this.formatFileSize(rom.size);
+      const timeStr = this.formatTimeAgo(rom.lastPlayed);
+
+      itemEl.innerHTML = `
+        <div class="recent-rom-left">
+          <div class="recent-rom-icon">🎮</div>
+          <div class="recent-rom-info">
+            <div class="recent-rom-title">${rom.cleanTitle || rom.name}</div>
+            <div class="recent-rom-meta">${sizeStr} • ${timeStr}</div>
+          </div>
+        </div>
+        <div class="recent-rom-actions">
+          <button class="btn btn-primary btn-sm btn-play-recent" title="Jugar ahora">▶️ Jugar</button>
+          <button class="btn btn-ghost btn-sm btn-delete-recent" title="Eliminar de recientes">🗑️</button>
+        </div>
+      `;
+
+      // Clic en la tarjeta o botón Jugar -> Lanzamiento directo del juego
+      const launchGame = async (e) => {
+        if (e) e.stopPropagation();
+        try {
+          if (rom.data) {
+            let romBlob = rom.data;
+            if (!(romBlob instanceof Blob) && !(romBlob instanceof File)) {
+              romBlob = new Blob([rom.data], { type: 'application/octet-stream' });
+              romBlob.name = rom.name;
+            }
+            if (window.saveManager) {
+              window.saveManager.updateRomLastPlayed(rom.name);
+            }
+            await this.loadRomFile(romBlob);
+          } else {
+            alert('Los datos de este juego no se encuentran en memoria. Por favor, selecciónalo nuevamente con "Seleccionar ROM".');
+          }
+        } catch (err) {
+          console.error('Error lanzando ROM reciente:', err);
+          alert('Error al abrir el juego. Por favor, selecciona el archivo .nds nuevamente.');
+        }
+      };
+
+      itemEl.addEventListener('click', launchGame);
+
+      const playBtn = itemEl.querySelector('.btn-play-recent');
+      if (playBtn) playBtn.addEventListener('click', launchGame);
+
+      // Botón Eliminar de recientes
+      const deleteBtn = itemEl.querySelector('.btn-delete-recent');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const gameTitle = rom.cleanTitle || rom.name;
+          if (confirm(`¿Eliminar "${gameTitle}" de la lista de juegos recientes?`)) {
+            if (window.saveManager) {
+              await window.saveManager.deleteRom(rom.name);
+              await this.renderRecentRoms();
+              window.saveManager.showToast(`🗑️ "${gameTitle}" eliminado de recientes`, 'info');
+            }
+          }
+        });
+      }
+
+      container.appendChild(itemEl);
+    });
+  }
+
+  formatFileSize(bytes) {
+    if (!bytes || bytes <= 0) return 'NDS ROM';
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(1)} MB`;
+  }
+
+  formatTimeAgo(timestamp) {
+    if (!timestamp) return 'Jugado recientemente';
+    const diffMs = Date.now() - timestamp;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+
+    if (diffSec < 60) return 'Jugado: hace un momento';
+    if (diffMin < 60) return `Jugado: hace ${diffMin} min`;
+    if (diffHour < 24) return `Jugado: hace ${diffHour} h`;
+    if (diffDay === 1) return 'Jugado: ayer';
+    if (diffDay < 7) return `Jugado: hace ${diffDay} días`;
+    const d = new Date(timestamp);
+    return `Jugado: ${d.toLocaleDateString()}`;
+  }
+
+  /**
    * Registro del Service Worker para soporte PWA y ejecución offline
    */
   initPWA() {
@@ -1167,7 +1303,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.3.16') {
+              if (key !== 'nds-emulator-v0.4.0') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1175,7 +1311,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.3.16').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.4.0').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
