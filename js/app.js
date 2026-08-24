@@ -729,9 +729,9 @@ class NDSEmulatorApp {
 
     // Callback cuando el juego guarda internamente en su menú (ej. Guardar en Pokémon)
     window.EJS_onSaveSave = (data) => {
-      console.log('Evento saveSave detectado: guardando SRAM y generando archivo .sav local...');
+      console.log('Evento saveSave detectado: guardando SRAM y mostrando confirmación de descarga...');
       if (data && window.saveManager) {
-        window.saveManager.saveGameData(data, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, false, true);
+        window.saveManager.saveGameData(data, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, false, false, true);
       }
     };
 
@@ -901,7 +901,7 @@ class NDSEmulatorApp {
     }
 
     if (saveData && window.saveManager) {
-      await window.saveManager.saveGameData(saveData, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, isAutoSave, forceDownload);
+      await window.saveManager.saveGameData(saveData, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, isAutoSave, forceDownload, !isAutoSave);
     } else if (!isAutoSave && window.saveManager) {
       window.saveManager.showToast('ℹ️ Guarda la partida dentro del juego (Guardar en Pokémon) y luego pulsa este botón.', 'info');
     }

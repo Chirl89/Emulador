@@ -1,13 +1,13 @@
 # 🎮 NDS Web Emulator (ROG Ally & Safari Edition)
 
-[![Version](https://img.shields.io/badge/version-v0.3.9-00f0ff.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-v0.3.10-00f0ff.svg)](./VERSION)
 [![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS%20|%20Opera%20GX-ff0055.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssembly (DeSmuME / melonDS core), optimizado específicamente para:
 1. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
 2. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
-3. **Safari en iOS / iPadOS / macOS**: PWA instalable con controles virtuales en pantalla, respuesta háptica, persistencia en IndexedDB y exportación directa de partidas `.sav` a la app **Archivos**.
+3. **Safari en iOS / iPadOS / macOS**: PWA instalable con controles virtuales en pantalla, respuesta háptica, persistencia en IndexedDB, menú emergente de confirmación y exportación de partidas `.sav` a la app **Archivos**.
 4. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en segundo plano.
 
 ---
@@ -27,10 +27,10 @@ Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssemb
 
 ### En PC / Opera GX / Asus ROG Ally:
 - **Sobreescritura directa**: Pulsa el botón **"📁 Vincular Carpeta SoulSilver"** o **"📁 Abrir Juego desde Carpeta"**. Al conceder permisos, cada vez que guardes en el menú de Pokémon o pulses **"💾 Guardar (.sav)"**, el emulador sobreescribirá directamente el archivo `.sav` en tu disco local sin ventanas de descarga molestas.
-- **Auto-Guardado en segundo plano**: Sincroniza automáticamente cada 20 segundos y al cerrar o recargar la pestaña.
+- **Auto-Guardado en segundo plano**: Sincroniza automáticamente cada 5 segundos y al cerrar o recargar la pestaña.
 
 ### En Safari (iOS / iPhone / iPad):
-- **Generación y Descarga de `.sav`**: Pulsa el botón **"📤 Exportar .sav"** (o **"💾 Guardar (.sav)"**) para generar y descargar instantáneamente tu archivo `.sav` compatible con cualquier emulador o guardarlo en la app **Archivos** de iOS / iCloud Drive.
+- **Menú Emergente de Confirmación al Guardar**: Cada vez que guardas dentro del juego (ej. menú Guardar en Pokémon) o pulsas "💾 Guardar (.sav)", aparece un cuadro emergente elegante que confirma que la partida está guardada en la memoria interna del emulador y te ofrece **"📥 Descargar .sav"** para guardarlo al instante en la app **Archivos** de iOS.
 - **Persistencia Automática (IndexedDB)**: Tu partida se guarda automáticamente en memoria interna segura para que no pierdas tu progreso al reiniciar la PWA o cerrar Safari.
 - **Importar Partidas**: Puedes cargar cualquier archivo `.sav` previo con el botón **"📥 Importar Partida Existente (.sav)"**.
 

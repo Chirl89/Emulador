@@ -10,7 +10,11 @@ class SaveManager {
     this.currentRomName = 'Pokemon - Edicion Plata SoulSilver';
     this.db = null;
     this.isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent || '')) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    this.pendingSaveData = null;
+    this.pendingSaveFilename = '';
+    this.lastModalTriggerTime = 0;
     this.initIndexedDB();
+    this.initSaveConfirmModal();
   }
 
   /**
@@ -157,13 +161,64 @@ class SaveManager {
   }
 
   /**
-   * Guarda los datos de partida (.sav) directamente en disco (sobreescribiendo) o genera descarga/iOS
+   * Inicializa los listeners del modal de confirmación de descarga de guardado .sav
+   */
+  initSaveConfirmModal() {
+    const modal = document.getElementById('save-confirm-modal');
+    const btnConfirm = document.getElementById('btn-confirm-save-download');
+    const btnCancel = document.getElementById('btn-cancel-save-download');
+    const btnClose = document.getElementById('btn-close-save-confirm');
+
+    const closeModal = () => {
+      if (modal) modal.style.display = 'none';
+    };
+
+    if (btnConfirm) {
+      btnConfirm.addEventListener('click', () => {
+        if (this.pendingSaveData && this.pendingSaveFilename) {
+          this.generateSavFileDownload(this.pendingSaveData, this.pendingSaveFilename);
+        }
+        closeModal();
+      });
+    }
+
+    if (btnCancel) btnCancel.addEventListener('click', closeModal);
+    if (btnClose) btnClose.addEventListener('click', closeModal);
+  }
+
+  /**
+   * Muestra el modal emergente para confirmar la descarga del archivo .sav
+   */
+  showSaveConfirmationModal(saveData, filename) {
+    const now = Date.now();
+    // Evitar disparar dos veces en menos de 2.5 segundos
+    if (now - this.lastModalTriggerTime < 2500) return;
+    this.lastModalTriggerTime = now;
+
+    this.pendingSaveData = saveData;
+    this.pendingSaveFilename = filename;
+
+    const modal = document.getElementById('save-confirm-modal');
+    const nameEl = document.getElementById('save-modal-filename');
+    const detailsEl = document.getElementById('save-modal-file-details');
+
+    if (nameEl) nameEl.textContent = filename;
+    if (detailsEl) detailsEl.textContent = filename;
+
+    if (modal) {
+      modal.style.display = 'flex';
+    }
+  }
+
+  /**
+   * Guarda los datos de partida (.sav) directamente en disco (sobreescribiendo) o muestra confirmación
    * @param {Uint8Array|ArrayBuffer|Blob} saveData Datos binarios del archivo .sav
    * @param {string} [customFileName] Nombre del archivo .sav
    * @param {boolean} [isAutoSave] Si es un auto-guardado en segundo plano
    * @param {boolean} [forceDownload] Forzar generación de archivo descargable .sav
+   * @param {boolean} [showPrompt] Mostrar menú emergente de confirmación de descarga
    */
-  async saveGameData(saveData, customFileName, isAutoSave = false, forceDownload = false) {
+  async saveGameData(saveData, customFileName, isAutoSave = false, forceDownload = false, showPrompt = false) {
     if (!saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) {
       console.warn('saveGameData: Datos de guardado vacíos o no listos');
       return false;
@@ -189,7 +244,7 @@ class SaveManager {
     await this.saveToIndexedDB(`${baseName}.sav`, uint8Data || saveData);
     await this.saveToIndexedDB(`game.sav`, uint8Data || saveData);
 
-    // 3. Si hay carpeta en disco vinculada (o seleccionada), sobreescribir silenciosamente
+    // 3. Si hay carpeta en disco vinculada (PC con File System API), sobreescribir silenciosamente
     if (this.directoryHandle) {
       try {
         const fileHandle = await this.directoryHandle.getFileHandle(filename, { create: true });
@@ -197,7 +252,7 @@ class SaveManager {
         await writable.write(saveData);
         await writable.close();
         if (!isAutoSave) {
-          this.showToast(`💾 Partida guardada automáticamente: ${filename}`, 'success');
+          this.showToast(`💾 Partida sobreescrita en disco: ${filename}`, 'success');
         }
         return true;
       } catch (err) {
@@ -205,9 +260,13 @@ class SaveManager {
       }
     }
 
-    // 4. Si se fuerza descarga manual o en iOS (cuando no es auto-save silencioso), generar el .sav
-    if (forceDownload || (this.isIOS && !isAutoSave)) {
+    // 4. Si se fuerza descarga manual o si se solicita mostrar confirmación emergente (iOS / PC sin carpeta vinculada)
+    if (forceDownload) {
       this.generateSavFileDownload(saveData, filename);
+    } else if (showPrompt && !isAutoSave) {
+      this.showSaveConfirmationModal(saveData, filename);
+    } else if (this.isIOS && !isAutoSave && !showPrompt) {
+      this.showSaveConfirmationModal(saveData, filename);
     }
 
     return true;
