@@ -14,18 +14,30 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e60012'/><rect x='15' y='18' width='70' height='30' rx='5' fill='%23111'/><rect x='15' y='52' width='70' height='30' rx='5' fill='%23111'/><circle cx='30' cy='33' r='4' fill='%2300f0ff'/><circle cx='70' cy='67' r='4' fill='%23ff0055'/></svg>">
 
   <!-- Estilos con cache-busting -->
-  <link rel="stylesheet" href="css/style.css?v=0.3.2">
-  <link rel="stylesheet" href="css/touch-controls.css?v=0.3.2">
+  <link rel="stylesheet" href="css/style.css?v=0.3.3">
+  <link rel="stylesheet" href="css/touch-controls.css?v=0.3.3">
 
   <!-- Escudo indestructible contra controles virtuales, barra inferior, menús contextuales y capturas de EmulatorJS -->
   <style id="ejs-override-shield">
+    .ejs_cheat_parent,
+    .ejs_netplay_parent,
     .ejs_menu_bar,
     .ejs_menu_bar_hidden,
     .ejs_menu_button,
     .ejs_menu_text,
     .ejs_menu_text_right,
+    .ejs_volume_parent,
     .ejs_list_selector,
     .ejs_context_menu_tab,
+    .ejs_context_menu,
+    .ejs_side_menu,
+    .ejs_modal,
+    .ejs_backdrop,
+    .ejs_settings_parent,
+    .ejs_cues,
+    .ejs_cue,
+    .ejs_screen_capture,
+    .ejs_watermark,
     .ejs_virtualGamepad,
     .ejs_virtualGamepad_parent,
     .ejs_virtualGamepad_open,
@@ -33,45 +45,7 @@
     .ejs_virtualGamepad_button,
     .ejs_virtualGamepad_left,
     .ejs_virtualGamepad_right,
-    .ejs_virtualGamepad_dpad,
-    .ejs_virtualGamepad_top,
-    .ejs_virtualGamepad_bottom,
-    .ejs_context_menu,
-    .ejs_menu,
-    .ejs_menu_parent,
-    .ejs_side_menu,
-    .ejs_modal,
-    .ejs_backdrop,
-    .ejs_settings,
-    .ejs_settings_parent,
-    .ejs_netplay,
-    .ejs_cheats,
-    .ejs_bottom_bar,
-    .ejs_top_bar,
-    .ejs_bar,
-    .ejs_cues,
-    .ejs_cue,
-    .ejs_screen_capture,
-    .ejs_watermark,
-    .ejs_popup,
-    .ejs_alert,
-    .ejs_confirm,
-    [class*="ejs_menu"],
-    [class*="ejs_list"],
-    [class*="ejs_bar"],
-    [class*="ejs_side"],
-    [class*="ejs_modal"],
-    [class*="ejs_backdrop"],
-    [class*="ejs_settings"],
-    [class*="ejs_cheats"],
-    [class*="ejs_netplay"],
-    [class*="ejs_virtualGamepad"],
-    [class*="ejs_dpad"],
-    [class*="ejs_context"],
-    [class*="ejs_cue"],
-    [class*="ejs_capture"],
-    [id*="ejs_menu"],
-    [id*="ejs_context"] {
+    .ejs_virtualGamepad_dpad {
       display: none !important;
       opacity: 0 !important;
       pointer-events: none !important;
@@ -96,7 +70,7 @@
         <div class="logo-badge">NDS</div>
         <div class="title-group">
           <h1>NDS Web Emulator</h1>
-          <span class="version-badge" id="app-version">v0.3.2</span>
+          <span class="version-badge" id="app-version">v0.3.3</span>
         </div>
       </div>
 
@@ -378,10 +352,10 @@
   </div>
 
   <!-- Scripts del Emulador con cache-busting -->
-  <script src="js/save-manager.js?v=0.3.2"></script>
-  <script src="js/gamepad.js?v=0.3.2"></script>
-  <script src="js/touch-controls.js?v=0.3.2"></script>
-  <script src="js/app.js?v=0.3.2"></script>
+  <script src="js/save-manager.js?v=0.3.3"></script>
+  <script src="js/gamepad.js?v=0.3.3"></script>
+  <script src="js/touch-controls.js?v=0.3.3"></script>
+  <script src="js/app.js?v=0.3.3"></script>
 </body>
 </html>
 

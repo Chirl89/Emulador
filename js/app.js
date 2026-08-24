@@ -82,40 +82,13 @@ class NDSEmulatorApp {
    * Oculta de forma permanente y segura cualquier menú modal, truco, menú contextual o captura del motor
    */
   initEngineGuard() {
-    const player = document.getElementById('game-player');
-    if (player && !this.domObserver) {
-      const observer = new MutationObserver(() => {
-        const toRemove = player.querySelectorAll(
-          'div[class*="cheat"], div[class*="netplay"], div[class*="control"], ' +
-          'div[class*="drag"], div[class*="about"], div[class*="popup"], ' +
-          'div[class*="modal"], div[class*="menu"], div[class*="bar"], ' +
-          'div[class*="cue"], div[class*="side"], div[class*="text"], ' +
-          'button, p, h2, h3, h4, span.ejs_menu_text, .ejs_list_selector, ' +
-          '.ejs_context_menu_tab, .ejs_virtualGamepad, [class*="ejs_virtualGamepad"], [class*="ejs_menu"]'
-        );
-        toRemove.forEach(el => {
-          if (el.tagName !== 'CANVAS' && !el.classList.contains('ejs_canvas') && !el.classList.contains('ejs_game') && !el.classList.contains('ejs_parent')) {
-            el.remove();
-          }
-        });
-      });
-      observer.observe(player, { childList: true, subtree: true });
-      this.domObserver = observer;
-    }
-
     const purgeIntrusiveElements = () => {
-      // 1. Remover botones de captura, barra inferior ejs_menu_bar, menús gigantes, trucos, red y modales de EmulatorJS
+      // 1. Remover botones de captura, barra inferior ejs_menu_bar, menús de trucos/red y modales de EmulatorJS
       const intrusive = document.querySelectorAll(
-        '.ejs_menu_bar, .ejs_menu_bar_hidden, .ejs_menu_button, .ejs_menu_text, .ejs_menu_text_right, ' +
-        '.ejs_list_selector, .ejs_context_menu_tab, .ejs_context_menu, .ejs_menu, .ejs_menu_parent, ' +
-        '.ejs_side_menu, .ejs_cues, .ejs_cue, .ejs_screen_capture, .ejs_watermark, .ejs_popup, ' +
-        '.ejs_alert, .ejs_confirm, .ejs_modal, .ejs_backdrop, .ejs_settings, .ejs_settings_parent, ' +
-        '.ejs_netplay, .ejs_cheats, .ejs_bottom_bar, .ejs_top_bar, .ejs_bar, [class*="ejs_menu"], ' +
-        '[class*="ejs_list"], [class*="ejs_bar"], [class*="ejs_side"], [class*="ejs_modal"], ' +
-        '[class*="ejs_backdrop"], [class*="ejs_settings"], [class*="ejs_cheats"], [class*="ejs_netplay"], ' +
-        '[class*="ejs_context"], [class*="ejs_cue"], [class*="ejs_capture"], [id*="ejs_menu"], ' +
-        '.ejs_virtualGamepad, .ejs_virtualGamepad_parent, .ejs_virtualGamepad_open, ' +
-        '.ejs_dpad_main, .ejs_virtualGamepad_button, [class*="ejs_virtualGamepad"], [class*="ejs_dpad"]'
+        '.ejs_cheat_parent, .ejs_netplay_parent, .ejs_menu_bar, .ejs_menu_bar_hidden, ' +
+        '.ejs_menu_button, .ejs_menu_text, .ejs_volume_parent, .ejs_side_menu, .ejs_modal, ' +
+        '.ejs_backdrop, .ejs_settings_parent, .ejs_cues, .ejs_cue, .ejs_screen_capture, ' +
+        '.ejs_watermark, .ejs_virtualGamepad, .ejs_virtualGamepad_parent, .ejs_virtualGamepad_open, .ejs_dpad_main'
       );
       intrusive.forEach(el => el.remove());
 
@@ -147,7 +120,7 @@ class NDSEmulatorApp {
       }
     };
 
-    setInterval(purgeIntrusiveElements, 50);
+    setInterval(purgeIntrusiveElements, 100);
   }
 
   /**
@@ -675,11 +648,6 @@ class NDSEmulatorApp {
     window.EJS_watermark = false;
     window.EJS_disableMenu = true;
     window.EJS_VirtualGamepadSettings = { disabled: true };
-
-    // Optimización de arranque inmediato (Evita el bloqueo de 15s de IndexedDB en Safari iOS)
-    window.EJS_cacheLimit = 0;
-    window.EJS_disableDatabases = true;
-    window.EJS_threads = true;
 
     // Configuración global para EmulatorJS
     window.EJS_player = '#game-player';
