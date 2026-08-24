@@ -1,16 +1,27 @@
 # 🎮 NDS Web Emulator (ROG Ally & Safari Edition)
 
-[![Version](https://img.shields.io/badge/version-v0.4.1-00f0ff.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-v0.5.0-00f0ff.svg)](./VERSION)
 [![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS%20|%20Opera%20GX-ff0055.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssembly (DeSmuME / melonDS core), optimizado específicamente para:
-1. **Acceso Directo a ROMs Recientes (.nds)**: Lista de juegos jugados en orden de última partida para jugar con 1 clic sin tener que navegar por archivos ni volver a seleccionarlos.
-2. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
-3. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
-4. **Safari en iOS / iPadOS / macOS**: PWA instalable con controles virtuales en pantalla, respuesta háptica y compatibilidad total.
-5. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
-6. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
+1. **🛡️ Sistema Acorazado de Guardado & Bóveda Time-Machine**: Historial con hasta 30 snapshots automáticos por juego, prevención total de sobreescritura con SRAM en blanco, resolución inteligente de conflictos por marcas de tiempo y restauración con 1 clic.
+2. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
+3. **Acceso Directo a ROMs Recientes (.nds)**: Lista de juegos jugados en orden de última partida para jugar con 1 clic sin tener que navegar por archivos ni volver a seleccionarlos.
+4. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
+5. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
+6. **Safari en iOS / iPadOS / macOS**: PWA instalable con controles virtuales en pantalla, respuesta háptica y persistencia duradera garantizada (`navigator.storage.persist`).
+7. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
+
+---
+
+## 🛡️ Bóveda de Partidas (Time-Machine) y Protección Anti-Pérdidas
+
+El emulador implementa un **Sistema de Protección Multinivel**:
+- **Blindaje Anti-Vacío**: El demonio de auto-guardado nunca sobreescribe una partida guardada con datos vacíos o no inicializados del motor.
+- **Historial Time-Machine**: Cada vez que se guarda una versión nueva, la anterior se archiva automáticamente en la Bóveda de seguridad de IndexedDB.
+- **Resolución Bidireccional de Conflictos**: Al arrancar, compara la partida local y la de la nube por marca de tiempo (*timestamp*); la más reciente siempre prevalece sin destruir la otra, creando un respaldo previo.
+- **Restauración en 1 Clic**: Accede al botón **"🛡️ Bóveda"** en cualquier momento para ver todo el historial, descargar archivos `.sav` individuales o restaurar cualquier punto anterior.
 
 ---
 
@@ -18,7 +29,7 @@ Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssemb
 
 1. Abre el emulador y pulsa en **⚙️ Ajustes**.
 2. En la sección **"☁️ Sincronización en la Nube con PubNub"**, introduce tu **Publish Key** (`pub-c-...`) y **Subscribe Key** (`sub-c-...`).
-3. Elige tu canal/ID de partida (por defecto: `soulsilver-cloud-saves`).
+3. Elige tu canal/ID de partida (por defecto dinámico: `${nombre_del_juego}-save`).
 4. Pulsa **"💾 Guardar y Conectar"** o **"🔗 Probar Conexión"**.
 5. ¡Listo! Ahora tu partida se sincronizará sola entre tu iPhone, PC y ROG Ally en tiempo real.
 
@@ -39,11 +50,11 @@ Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssemb
 
 ### En PC / Opera GX / Asus ROG Ally:
 - **Sobreescritura directa**: Pulsa el botón **"📁 Vincular Carpeta SoulSilver"** o **"📁 Abrir Juego desde Carpeta"**. Al conceder permisos, cada vez que guardes en el menú de Pokémon o pulses **"💾 Guardar (.sav)"**, el emulador sobreescribirá directamente el archivo `.sav` en tu disco local sin ventanas de descarga molestas.
-- **Auto-Guardado en segundo plano**: Sincroniza automáticamente cada 5 segundos y al cerrar o recargar la pestaña.
+- **Auto-Guardado seguro en segundo plano**: Sincroniza automáticamente cada 4 segundos solo cuando hay cambios reales verificados.
 
 ### En Safari (iOS / iPhone / iPad):
-- **Menú Emergente de Confirmación al Guardar**: Cada vez que guardas dentro del juego (ej. menú Guardar en Pokémon) o pulsas "💾 Guardar (.sav)", aparece un cuadro emergente elegante que confirma que la partida está guardada en la memoria interna del emulador y te ofrece **"📥 Descargar .sav"** para guardarlo al instante en la app **Archivos** de iOS.
-- **Persistencia Automática (IndexedDB)**: Tu partida se guarda automáticamente en memoria interna segura para que no pierdas tu progreso al reiniciar la PWA o cerrar Safari.
+- **Menú Emergente de Confirmación al Guardar**: Cada vez que guardas dentro del juego (ej. menú Guardar en Pokémon) o pulsas "💾 Guardar (.sav)", aparece un cuadro emergente elegante que confirma que la partida está protegida en la Bóveda del emulador y te ofrece **"📥 Descargar .sav"** para guardarlo al instante en la app **Archivos** de iOS.
+- **Persistencia Duradera (IndexedDB v4)**: Tu partida se guarda automáticamente en memoria interna con persistencia concedida por el navegador para que no pierdas tu progreso al reiniciar la PWA o cerrar Safari.
 - **Importar Partidas**: Puedes cargar cualquier archivo `.sav` previo con el botón **"📥 Importar Partida Existente (.sav)"**.
 
 ---
@@ -102,4 +113,4 @@ El emulador mapea de forma nativa los controles del ROG Ally mediante la Gamepad
 Consulta el archivo [AGENT_INSTRUCTIONS.md](./AGENT_INSTRUCTIONS.md) para ver las reglas de ciclo de vida del proyecto:
 - Inicio en **`v0.0.1`**.
 - Incremento de parches `v0.0.2`, ..., `v0.0.17`.
-- Salto a versiones menores `v0.1`, `v0.2`, etc., en cada nueva conversación.
+- Salto a versiones menores `v0.1`, `v0.2`, `v0.5.0` en cada nueva conversación / hito mayor.

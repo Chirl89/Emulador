@@ -1,20 +1,20 @@
 /**
  * NDS Web Emulator - Cloud Save Manager
- * Sincronización en tiempo real y persistencia en la nube entre iPhone, PC y ROG Ally
- * Utiliza credenciales PubNub con canal dinámico por cada ROM (${romName}-save)
- * Versión: v0.3.16
+ * Sincronización bidireccional en tiempo real y persistencia en la nube
+ * Validación de integridad por chunks, timestamps y resolución de conflictos
+ * Versión: v0.5.0
  */
 
 class CloudSaveManager {
   constructor() {
     this.pubnub = null;
-    // Por defecto usa las credenciales demo de PubNub (como en FitDuo), o las personalizadas del usuario
     this.publishKey = localStorage.getItem('pubnub_pub_key') || 'demo';
     this.subscribeKey = localStorage.getItem('pubnub_sub_key') || 'demo';
     this.userId = localStorage.getItem('pubnub_user_id') || ('user_' + Math.random().toString(36).substring(2, 9));
     this.isUploading = false;
     this.lastUploadTime = 0;
     this.currentChannel = 'game-save';
+    this.lastCloudMeta = null;
 
     localStorage.setItem('pubnub_user_id', this.userId);
     this.initPubNub();
@@ -102,9 +102,9 @@ class CloudSaveManager {
   }
 
   /**
-   * Descarga la partida (.sav) más reciente desde el canal único del juego
+   * Descarga la partida (.sav) más reciente desde el canal único del juego con metadatos
    * @param {string} romName Nombre del archivo ROM
-   * @returns {Promise<Uint8Array|null>}
+   * @returns {Promise<{data: Uint8Array, timestamp: number, syncId: string, byteLength: number, hash: number}|null>}
    */
   async fetchLatestCloudSave(romName) {
     const channel = this.getChannelForRom(romName);
@@ -128,7 +128,7 @@ class CloudSaveManager {
         return null;
       }
 
-      // Buscar mensajes de tipo nds_cloud_save
+      // Buscar mensajes válidos de tipo nds_cloud_save
       const saveMessages = [];
       for (const item of messages) {
         const msg = (item && item.message) ? item.message : item;
@@ -143,13 +143,16 @@ class CloudSaveManager {
         return null;
       }
 
-      // Agrupar por syncId para obtener la versión más reciente
+      // Agrupar por syncId para reconstruir la versión más reciente
       const syncGroups = {};
       for (const msg of saveMessages) {
         if (!syncGroups[msg.syncId]) {
           syncGroups[msg.syncId] = {
+            syncId: msg.syncId,
             timestamp: msg.timestamp || 0,
             totalChunks: msg.totalChunks || 1,
+            byteLength: msg.byteLength || 0,
+            hash: msg.hash || 0,
             chunks: {}
           };
         }
@@ -158,24 +161,55 @@ class CloudSaveManager {
 
       // Ordenar syncIds por timestamp descendente
       const sortedSyncIds = Object.keys(syncGroups).sort((a, b) => syncGroups[b].timestamp - syncGroups[a].timestamp);
-      const latestSyncId = sortedSyncIds[0];
-      const latestGroup = syncGroups[latestSyncId];
+
+      // Buscar el grupo más reciente que tenga TODOS sus chunks completos
+      let completeGroup = null;
+      for (const sId of sortedSyncIds) {
+        const group = syncGroups[sId];
+        let isComplete = true;
+        for (let i = 0; i < group.totalChunks; i++) {
+          if (group.chunks[i] === undefined) {
+            isComplete = false;
+            break;
+          }
+        }
+        if (isComplete) {
+          completeGroup = group;
+          break;
+        }
+      }
+
+      if (!completeGroup) {
+        console.warn(`☁️ [PubNub Cloud] No se encontraron versiones completas de chunks en "${channel}"`);
+        this.updateUIStatus('connected');
+        return null;
+      }
 
       // Reconstruir los chunks en orden
       let fullBase64 = '';
-      for (let i = 0; i < latestGroup.totalChunks; i++) {
-        if (latestGroup.chunks[i] === undefined) {
-          console.warn(`☁️ [PubNub Cloud] Falta el bloque ${i} de la versión ${latestSyncId}`);
-          return null;
-        }
-        fullBase64 += latestGroup.chunks[i];
+      for (let i = 0; i < completeGroup.totalChunks; i++) {
+        fullBase64 += completeGroup.chunks[i];
       }
 
       const uint8 = this.base64ToUint8(fullBase64);
       if (uint8 && uint8.byteLength > 0) {
-        console.log(`☁️ [PubNub Cloud] ✅ Partida "${channel}" descargada con éxito (${uint8.byteLength} bytes).`);
+        console.log(`☁️ [PubNub Cloud] ✅ Partida "${channel}" reconstruida con éxito (${uint8.byteLength} bytes, fecha: ${new Date(completeGroup.timestamp).toLocaleString()}).`);
         this.updateUIStatus('connected');
-        return uint8;
+
+        this.lastCloudMeta = {
+          syncId: completeGroup.syncId,
+          timestamp: completeGroup.timestamp,
+          byteLength: uint8.byteLength,
+          hash: completeGroup.hash || (window.saveManager?.computeHash(uint8) || 0)
+        };
+
+        return {
+          data: uint8,
+          timestamp: completeGroup.timestamp,
+          syncId: completeGroup.syncId,
+          byteLength: uint8.byteLength,
+          hash: this.lastCloudMeta.hash
+        };
       }
     } catch (err) {
       console.warn(`☁️ [PubNub Cloud] Error descargando partida de "${channel}":`, err);
@@ -186,12 +220,25 @@ class CloudSaveManager {
   }
 
   /**
-   * Sube y sobreescribe la partida (.sav) en el canal único del juego
+   * Sube la partida (.sav) al canal único del juego con metadatos completos y chunks seguros
    * @param {Uint8Array|ArrayBuffer|Blob} saveData Datos binarios del archivo .sav
    * @param {string} romName Nombre de la ROM
    */
   async uploadCloudSave(saveData, romName) {
     if (!saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) {
+      return false;
+    }
+
+    let uint8Data = saveData;
+    if (saveData instanceof Blob) {
+      uint8Data = new Uint8Array(await saveData.arrayBuffer());
+    } else if (saveData instanceof ArrayBuffer) {
+      uint8Data = new Uint8Array(saveData);
+    }
+
+    // VALIDACIÓN ANTI-VACÍO: Evitar subir SRAM en blanco o corrupta
+    if (window.saveManager && !window.saveManager.isSramValidAndProgressed(uint8Data)) {
+      console.log('☁️ [PubNub Cloud] Guardado omitido: SRAM no inicializada o sin progreso.');
       return false;
     }
 
@@ -204,13 +251,7 @@ class CloudSaveManager {
     this.currentChannel = channel;
     const pubKey = (this.publishKey || 'demo').trim();
     const subKey = (this.subscribeKey || 'demo').trim();
-
-    let uint8Data = saveData;
-    if (saveData instanceof Blob) {
-      uint8Data = new Uint8Array(await saveData.arrayBuffer());
-    } else if (saveData instanceof ArrayBuffer) {
-      uint8Data = new Uint8Array(saveData);
-    }
+    const hash = window.saveManager ? window.saveManager.computeHash(uint8Data) : 0;
 
     this.isUploading = true;
     this.lastUploadTime = now;
@@ -224,7 +265,7 @@ class CloudSaveManager {
 
       console.log(`☁️ [PubNub Cloud] Subiendo "${channel}" (${uint8Data.byteLength} bytes en ${totalChunks} bloques)...`);
 
-      // Publicar todos los bloques en paralelo
+      // Publicar todos los bloques en paralelo con metadatos
       const publishPromises = [];
       for (let i = 0; i < totalChunks; i++) {
         const chunk = base64Data.substring(i * chunkSize, (i + 1) * chunkSize);
@@ -233,8 +274,12 @@ class CloudSaveManager {
           rom: channel,
           syncId: syncId,
           timestamp: now,
+          byteLength: uint8Data.byteLength,
+          hash: hash,
           chunkIndex: i,
           totalChunks: totalChunks,
+          isVerifiedSave: true,
+          version: 'v0.5.0',
           data: chunk
         };
 
@@ -245,11 +290,18 @@ class CloudSaveManager {
 
       await Promise.all(publishPromises);
 
+      this.lastCloudMeta = {
+        syncId: syncId,
+        timestamp: now,
+        byteLength: uint8Data.byteLength,
+        hash: hash
+      };
+
       console.log(`☁️ [PubNub Cloud] ✅ Partida subida a "${channel}" con éxito.`);
       this.updateUIStatus('connected');
 
       if (window.saveManager) {
-        window.saveManager.showToast(`☁️ Partida guardada en la Nube (${channel})`, 'success');
+        window.saveManager.showToast(`☁️ Partida respaldada en la Nube (${channel})`, 'success');
       }
 
       this.isUploading = false;
@@ -263,7 +315,56 @@ class CloudSaveManager {
   }
 
   /**
-   * Conversión rápida de Uint8Array a Base64 segura para memoria
+   * Forzar subida manual de la partida actual
+   */
+  async forceCloudUpload(romName) {
+    if (!window.saveManager) return false;
+    const rec = await window.saveManager.getLocalSaveRecord(romName || window.app?.currentRomName);
+    if (!rec || !rec.data) {
+      window.saveManager.showToast('⚠️ No hay partida local para subir.', 'warning');
+      return false;
+    }
+    this.lastUploadTime = 0; // Desactivar cooldown
+    const ok = await this.uploadCloudSave(rec.data, romName || window.app?.currentRomName);
+    return ok;
+  }
+
+  /**
+   * Forzar descarga manual desde la Nube
+   */
+  async forceCloudDownload(romName) {
+    if (!window.saveManager) return false;
+    const name = romName || window.app?.currentRomName;
+    const cloudRes = await this.fetchLatestCloudSave(name);
+    if (cloudRes && cloudRes.data) {
+      const baseName = window.saveManager.sanitizeName(name);
+      await window.saveManager.createBackupSnapshot(baseName, cloudRes.data, 'cloud', 'Descarga manual forzada de Nube');
+      await window.saveManager.saveToIndexedDB(`${baseName}.sav`, cloudRes.data);
+      await window.saveManager.saveToIndexedDB(`game.sav`, cloudRes.data);
+      await window.saveManager.saveToIndexedDB(`last_known_good_${baseName}.sav`, cloudRes.data);
+
+      if (window.EJS_emulator?.gameManager?.FS) {
+        try {
+          const gm = window.EJS_emulator.gameManager;
+          const targetPath = gm.getSaveFilePath?.() || `/data/saves/${baseName}.sav`;
+          if (gm.FS.analyzePath('/data/saves').exists) {
+            gm.FS.writeFile(targetPath, cloudRes.data);
+            gm.FS.writeFile(`/data/saves/game.sav`, cloudRes.data);
+            if (typeof gm.loadSaveFiles === 'function') gm.loadSaveFiles();
+          }
+        } catch (e) {}
+      }
+
+      window.saveManager.showToast('☁️ Partida forzada descargada e inyectada con éxito', 'success');
+      return true;
+    } else {
+      window.saveManager.showToast('⚠️ No se encontró partida en la Nube.', 'warning');
+      return false;
+    }
+  }
+
+  /**
+   * Conversión rápida de Uint8Array a Base64
    */
   uint8ToBase64(bytes) {
     let binary = '';
@@ -298,7 +399,6 @@ class CloudSaveManager {
     if (!statusItem || !label) return;
 
     statusItem.className = 'status-item';
-
     const channelName = this.currentChannel || 'soulsilver-save';
 
     switch (status) {
@@ -328,4 +428,3 @@ class CloudSaveManager {
 
 // Instancia global
 window.cloudSaveManager = new CloudSaveManager();
-

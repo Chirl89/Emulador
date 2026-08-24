@@ -14,8 +14,8 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e60012'/><rect x='15' y='18' width='70' height='30' rx='5' fill='%23111'/><rect x='15' y='52' width='70' height='30' rx='5' fill='%23111'/><circle cx='30' cy='33' r='4' fill='%2300f0ff'/><circle cx='70' cy='67' r='4' fill='%23ff0055'/></svg>">
 
   <!-- Estilos con cache-busting -->
-  <link rel="stylesheet" href="css/style.css?v=0.4.4">
-  <link rel="stylesheet" href="css/touch-controls.css?v=0.4.4">
+  <link rel="stylesheet" href="css/style.css?v=0.5.0">
+  <link rel="stylesheet" href="css/touch-controls.css?v=0.5.0">
 
   <!-- Escudo indestructible contra controles virtuales, barra inferior, menús contextuales y capturas de EmulatorJS -->
   <style id="ejs-override-shield">
@@ -70,7 +70,7 @@
         <div class="logo-badge">NDS</div>
         <div class="title-group">
           <h1>NDS Web Emulator</h1>
-          <span class="version-badge" id="app-version">v0.4.4</span>
+          <span class="version-badge" id="app-version">v0.5.0</span>
         </div>
       </div>
 
@@ -104,6 +104,9 @@
 
       <!-- Acciones de Cabecera -->
       <div class="header-actions">
+        <button class="btn btn-secondary btn-sm btn-open-vault" id="btn-open-vault" title="Bóveda de Partidas y Copias de Seguridad Time-Machine">
+          🛡️ <span class="btn-text">Bóveda</span>
+        </button>
         <button class="btn btn-secondary btn-sm" id="btn-toggle-touch" title="Mostrar/Ocultar controles virtuales en pantalla">
           📱 <span class="btn-text">Táctil</span>
         </button>
@@ -127,10 +130,13 @@
         <div class="welcome-card" id="welcome-card">
           <div class="card-glow"></div>
 
-          <!-- Botón de actualización inmediata desde GitHub (Evita cachés en Safari iOS) -->
-          <div class="welcome-refresh-wrapper">
-            <button class="btn btn-secondary btn-sm" id="btn-force-git-refresh" title="Limpiar caché de Safari y forzar descarga de la última versión de GitHub">
-              🔄 Refrescar y Descargar Última Versión de GitHub
+          <!-- Botones de Acción Superior (Actualización GitHub y Bóveda de Seguridad) -->
+          <div class="welcome-refresh-wrapper" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" id="btn-force-git-refresh" title="Limpiar caché de Safari y forzar descarga de la última versión de GitHub" style="flex: 1; max-width: 220px;">
+              🔄 Refrescar GitHub
+            </button>
+            <button class="btn btn-secondary btn-sm btn-open-vault" id="btn-open-vault-welcome" title="Abrir Bóveda de Partidas y Copias de Seguridad" style="flex: 1; max-width: 220px; border-color: var(--color-success); color: var(--color-success);">
+              🛡️ Bóveda de Partidas
             </button>
           </div>
 
@@ -267,6 +273,14 @@
 
         <div class="modal-body">
           <div class="settings-section">
+            <h4>🛡️ Bóveda de Partidas (Time-Machine)</h4>
+            <p class="settings-desc">Historial con hasta 30 snapshots automáticos, restauración con 1 clic y salvaguarda anti-pérdidas:</p>
+            <button class="btn btn-primary btn-sm btn-open-vault" id="btn-open-vault-settings" style="margin-top: 4px;">
+              🛡️ Abrir Bóveda de Partidas
+            </button>
+          </div>
+
+          <div class="settings-section">
             <h4>🎮 Mando Asus ROG Ally & Gamepad</h4>
             <p class="settings-desc">El mando del ROG Ally funciona automáticamente. Aquí puedes comprobar los botones activos:</p>
             <div class="gamepad-tester" id="gamepad-tester">
@@ -310,7 +324,7 @@
               <select id="save-mode-selector" class="form-select">
                 <option value="auto_download" selected>📥 Descarga directa (Generar .sav al guardar automáticamente)</option>
                 <option value="ask_modal">💬 Preguntar siempre con ventana emergente</option>
-                <option value="silent">💾 Solo memoria interna (Sin descargas)</option>
+                <option value="silent">💾 Solo memoria interna protegida (Sin descargas)</option>
               </select>
             </div>
           </div>
@@ -329,7 +343,7 @@
 
           <div class="settings-section">
             <h4>☁️ Sincronización en la Nube con PubNub</h4>
-            <p class="settings-desc">Preconfigurado automáticamente. Cada juego tiene su propio canal aislado (<code>nombre_del_juego-save</code>) para que múltiples juegos no se pisen:</p>
+            <p class="settings-desc">Preconfigurado automáticamente con canal dinámico por ROM (<code>nombre_del_juego-save</code>):</p>
             <div style="display: flex; flex-direction: column; gap: 10px;">
               <div>
                 <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Canal del Juego Actual:</label>
@@ -374,6 +388,69 @@
       </div>
     </div>
 
+    <!-- Modal Bóveda de Partidas / Copias de Seguridad Time-Machine -->
+    <div id="vault-modal" class="modal-backdrop" style="display: none; z-index: 10001;">
+      <div class="modal-content vault-modal-content">
+        <div class="modal-header">
+          <div class="vault-modal-title-group">
+            <h3>🛡️ Bóveda de Partidas Time-Machine</h3>
+            <span class="vault-badge-version">v0.5.0</span>
+          </div>
+          <button class="btn-close" id="btn-close-vault">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Tarjeta de Estado del Juego Actual -->
+          <div class="vault-status-card">
+            <div class="vault-status-header">
+              <div class="vault-game-icon">🎮</div>
+              <div class="vault-game-details">
+                <h4 id="vault-game-title">Pokemon - Edicion Plata SoulSilver</h4>
+                <div class="vault-status-sub">
+                  <div>💾 Local: <span id="vault-local-status">🟢 Protegida</span></div>
+                  <div>☁️ Nube: <span id="vault-cloud-status">☁️ Activa</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Barra de Acciones Rápidas de la Bóveda -->
+          <div class="vault-actions-bar">
+            <button class="btn btn-primary btn-sm" id="btn-vault-manual-backup" title="Crear una copia de seguridad manual ahora mismo">
+              ➕ Crear Copia Manual
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btn-vault-force-upload" title="Subir la partida local a la Nube de PubNub inmediatamente">
+              ☁️ Forzar Subida Nube
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btn-vault-force-download" title="Descargar e inyectar la partida más reciente de la Nube">
+              ☁️ Forzar Descarga Nube
+            </button>
+            <button class="btn btn-ghost btn-sm" id="btn-vault-refresh" title="Actualizar lista de copias">
+              🔄
+            </button>
+          </div>
+
+          <!-- Historial de Copias de Seguridad -->
+          <div class="vault-history-section">
+            <div class="vault-history-header">
+              <h4>📜 Historial de Versiones (Time-Machine)</h4>
+              <span class="vault-count-badge" id="vault-backups-count">0 copias</span>
+            </div>
+            <div class="vault-backups-list" id="vault-backups-list">
+              <div class="vault-empty">
+                <p>Cargando copias de seguridad...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 11px; color: var(--text-dim);">🛡️ Protección total contra sobreescritura y pérdidas</span>
+          <button class="btn btn-secondary" onclick="document.getElementById('vault-modal').style.display='none'">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal Emergente de Confirmación de Guardado y Descarga de .sav -->
     <div id="save-confirm-modal" class="modal-backdrop" style="display: none; z-index: 10000;">
       <div class="modal-content save-confirm-content">
@@ -385,7 +462,7 @@
           <div class="save-confirm-icon">🎮</div>
           <h4 style="color: #fff; font-size: 16px; margin-bottom: 8px;">¡Partida guardada con éxito!</h4>
           <p class="settings-desc" style="margin-bottom: 12px;">
-            Tu partida se ha guardado en la memoria interna del emulador. ¿Deseas descargar el archivo <strong id="save-modal-filename" style="color: var(--color-primary);">SoulSilver.sav</strong> a tu dispositivo (App Archivos / Descargas)?
+            Tu partida se ha protegido en la Bóveda interna del emulador. ¿Deseas descargar el archivo <strong id="save-modal-filename" style="color: var(--color-primary);">SoulSilver.sav</strong> a tu dispositivo (App Archivos / Descargas)?
           </p>
           <div class="save-file-info-badge">
             <span class="file-icon">📄</span>
@@ -413,11 +490,10 @@
   <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.4.3.min.js"></script>
 
   <!-- Scripts del Emulador con cache-busting -->
-  <script src="js/cloud-save-manager.js?v=0.4.4"></script>
-  <script src="js/save-manager.js?v=0.4.4"></script>
-  <script src="js/gamepad.js?v=0.4.4"></script>
-  <script src="js/touch-controls.js?v=0.4.4"></script>
-  <script src="js/app.js?v=0.4.4"></script>
+  <script src="js/cloud-save-manager.js?v=0.5.0"></script>
+  <script src="js/save-manager.js?v=0.5.0"></script>
+  <script src="js/gamepad.js?v=0.5.0"></script>
+  <script src="js/touch-controls.js?v=0.5.0"></script>
+  <script src="js/app.js?v=0.5.0"></script>
 </body>
 </html>
-

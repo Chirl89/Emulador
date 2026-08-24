@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - ROG Ally & Safari Edition
-   Estilos Principales v0.4.4
+   Estilos Principales v0.5.0
    ========================================================================== */
 
 :root {
@@ -1180,3 +1180,265 @@ body.is-emulating .touch-controls-overlay,
     padding: 20px 16px;
   }
 }
+
+/* ==========================================================================
+   Bóveda de Partidas Time-Machine (v0.5.0)
+   ========================================================================== */
+.vault-modal-content {
+  max-width: 660px;
+  width: 95%;
+  background: rgba(18, 20, 30, 0.96) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(0, 255, 136, 0.3) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(0, 255, 136, 0.15) !important;
+}
+
+.vault-modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vault-badge-version {
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid var(--color-success);
+  color: var(--color-success);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.vault-status-card {
+  background: rgba(10, 12, 18, 0.65);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.vault-status-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.vault-game-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.4));
+}
+
+.vault-game-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.vault-game-details h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.vault-status-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.vault-status-sub code {
+  font-family: monospace;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: var(--color-primary);
+}
+
+.vault-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.vault-history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vault-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vault-history-header h4 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.vault-count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-success);
+  background: rgba(0, 255, 136, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.vault-backups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.vault-backup-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(24, 27, 42, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  transition: all 0.2s ease;
+}
+
+.vault-backup-item:hover {
+  border-color: var(--color-success);
+  background: rgba(24, 27, 42, 0.95);
+  box-shadow: 0 2px 10px rgba(0, 255, 136, 0.1);
+}
+
+.vault-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.vault-item-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.badge-auto {
+  background: rgba(0, 240, 255, 0.15);
+  color: var(--color-primary);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+}
+
+.badge-manual {
+  background: rgba(255, 184, 0, 0.15);
+  color: var(--color-warning);
+  border: 1px solid rgba(255, 184, 0, 0.4);
+}
+
+.badge-cloud {
+  background: rgba(180, 70, 255, 0.15);
+  color: #d88eff;
+  border: 1px solid rgba(180, 70, 255, 0.4);
+}
+
+.badge-presync {
+  background: rgba(0, 255, 136, 0.15);
+  color: var(--color-success);
+  border: 1px solid rgba(0, 255, 136, 0.4);
+}
+
+.badge-import {
+  background: rgba(255, 100, 50, 0.15);
+  color: #ff8b60;
+  border: 1px solid rgba(255, 100, 50, 0.4);
+}
+
+.vault-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vault-item-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vault-item-timeago {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.vault-item-meta {
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.vault-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.vault-item-actions .btn-restore-backup {
+  padding: 4px 8px;
+  font-size: 11.5px;
+}
+
+.vault-item-actions .btn-download-backup {
+  padding: 4px 6px;
+  font-size: 11.5px;
+}
+
+.vault-item-actions .btn-delete-backup {
+  padding: 4px 6px;
+  font-size: 11.5px;
+  opacity: 0.6;
+}
+
+.vault-item-actions .btn-delete-backup:hover {
+  opacity: 1;
+  color: var(--color-accent);
+}
+
+.vault-empty {
+  text-align: center;
+  padding: 24px 16px;
+  background: rgba(10, 12, 18, 0.4);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.vault-empty .empty-subtext {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
