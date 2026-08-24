@@ -433,12 +433,16 @@ html, body {
   overflow: hidden;
 }
 
-.game-player {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.game-player,
+.game-player > div,
+.game-player iframe {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  background: #000 !important;
 }
 
 /* Ocultar completamente el gamepad virtual duplicado interno de EmulatorJS */
@@ -458,22 +462,28 @@ html, body {
 }
 
 .game-player iframe,
-.game-player canvas {
-  max-width: 100%;
-  max-height: 100%;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
+.game-player canvas,
+#game-player canvas,
+.emulator-container canvas {
+  display: block !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  width: auto !important;
+  height: 100% !important;
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: pixelated !important;
+  image-rendering: crisp-edges !important;
   pointer-events: auto !important;
   touch-action: none;
   cursor: crosshair;
-  object-fit: contain;
+  object-fit: contain !important;
+  margin: auto !important;
 }
 
 /* En iPhone / iOS en orientación vertical, distribución exacta 1/3 pantalla superior, 1/3 pantalla inferior, 1/3 controles */
-.device-portrait .emulator-container.layout-vertical .game-player canvas,
-.device-iphone .emulator-container.layout-vertical .game-player canvas,
-.device-ios .emulator-container.layout-vertical .game-player canvas {
+.device-portrait .emulator-container .game-player canvas,
+.device-iphone .emulator-container .game-player canvas,
+.device-ios .emulator-container .game-player canvas {
   height: 100% !important;
   width: auto !important;
   max-width: 100% !important;

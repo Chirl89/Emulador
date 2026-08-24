@@ -530,24 +530,7 @@ class NDSEmulatorApp {
     // NUNCA cargar savestates automáticos (para no corromper la lectura del juego)
     window.EJS_loadStateURL = null;
     window.EJS_loadState = null;
-
-    // Precargar la partida SRAM (.sav) dentro del sistema de archivos antes de que arranque la ROM
-    if (window.saveManager) {
-      const priorSave = await window.saveManager.loadExistingSave(this.currentRomName);
-      if (priorSave && priorSave.byteLength > 0) {
-        const saveBlob = new Blob([priorSave], { type: 'application/octet-stream' });
-        const saveUrl = URL.createObjectURL(saveBlob);
-        window.EJS_externalFiles = {
-          [`/data/saves/${baseName}.sav`]: saveUrl,
-          [`/data/saves/${this.currentRomName}.sav`]: saveUrl,
-          [`/data/saves/${baseName}.dsv`]: saveUrl,
-          '/data/saves/game.sav': saveUrl
-        };
-        console.log(`[SRAM Boot] Montada partida .sav previa (${priorSave.byteLength} bytes) en /data/saves/`);
-      } else {
-        window.EJS_externalFiles = {};
-      }
-    }
+    window.EJS_externalFiles = null; // Evita que downloadFile de EmulatorJS se bloquee con blobs en Safari
 
     // Configuración global para EmulatorJS
     window.EJS_player = '#game-player';
@@ -604,9 +587,23 @@ class NDSEmulatorApp {
       // 2. Aplicar opciones de núcleo para Pantalla Dual y Stylus Táctil
       this.applyCoreTouchSettings();
 
-      // 3. Verificación suave de partida previa
+      // 3. Escribir partida previa directamente en la memoria virtual FS si existe
       if (window.saveManager) {
-        window.saveManager.showToast(`🎮 ${this.currentRomName} listo. ¡Usa el menú del juego para continuar/guardar!`, 'success');
+        const priorSave = await window.saveManager.loadExistingSave(this.currentRomName);
+        if (priorSave && priorSave.byteLength > 0 && window.EJS_emulator?.gameManager?.FS) {
+          try {
+            const gm = window.EJS_emulator.gameManager;
+            const targetPath = gm.getSaveFilePath?.() || `/data/saves/${baseName}.sav`;
+            if (gm.FS.analyzePath('/data/saves').exists) {
+              gm.FS.writeFile(targetPath, priorSave);
+              gm.FS.writeFile(`/data/saves/game.sav`, priorSave);
+              console.log(`[SRAM Direct Injected] ${targetPath} (${priorSave.byteLength} bytes)`);
+            }
+          } catch (e) {
+            console.warn('Error inyectando partida en arranque:', e);
+          }
+        }
+        window.saveManager.showToast(`🎮 ${this.currentRomName} cargado. ¡A jugar!`, 'success');
       }
     };
 
