@@ -124,15 +124,69 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Inicializa el servicio de auto-guardado en segundo plano y al cerrar pestaña
+   * Calcula un hash rápido de 32-bit de los datos binarios de guardado
+   */
+  computeSaveHash(data) {
+    if (!data) return 0;
+    const uint8 = data instanceof Uint8Array ? data : (data instanceof ArrayBuffer ? new Uint8Array(data) : null);
+    if (!uint8 || uint8.length === 0) return 0;
+    let hash = 2166136261;
+    for (let i = 0; i < uint8.length; i += 4) {
+      hash ^= uint8[i];
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0) ^ uint8.length;
+  }
+
+  /**
+   * Inicializa el servicio de auto-guardado en segundo plano y detección activa de guardado en el juego
    */
   initAutoSaveDaemon() {
-    // Polling rápido cada 5 segundos para capturar guardados dentro del juego (ej. Menú Guardar en Pokémon)
+    this.lastSavedHash = null;
+
+    // Polling activo cada 1.5 segundos para capturar en tiempo real cuando el juego escribe a SRAM (Guardar en Pokémon)
     this.autoSaveInterval = setInterval(() => {
-      if (this.isEmulating && !this.isPaused) {
-        this.triggerSave(true);
+      if (!this.isEmulating || this.isPaused || !window.EJS_emulator?.gameManager) {
+        return;
       }
-    }, 5000);
+
+      try {
+        const gm = window.EJS_emulator.gameManager;
+        let saveData = null;
+
+        if (typeof gm.getSaveFile === 'function') {
+          saveData = gm.getSaveFile();
+        } else if (typeof gm.saveSaveFiles === 'function') {
+          gm.saveSaveFiles();
+          saveData = gm.getSaveFile?.(false);
+        }
+
+        if (saveData && (saveData.byteLength || saveData.length) > 0) {
+          const currentHash = this.computeSaveHash(saveData);
+
+          // Si es el inicio de la sesión, fijar el hash base sin molestar
+          if (this.lastSavedHash === null) {
+            this.lastSavedHash = currentHash;
+          } else if (currentHash !== this.lastSavedHash && (!this.gameStartedTime || Date.now() - this.gameStartedTime > 4000)) {
+            // ¡CAMBIO DETECTADO EN LA MEMORIA DE GUARDADO! (El usuario guardó en el juego)
+            console.log('🎮 [SRAM Guardado Detectado] Hash anterior:', this.lastSavedHash, '-> Nuevo:', currentHash);
+            this.lastSavedHash = currentHash;
+
+            if (window.saveManager) {
+              window.saveManager.saveGameData(
+                saveData,
+                `${window.saveManager.sanitizeName(this.currentRomName)}.sav`,
+                false, // isAutoSave = false
+                false, // forceDownload = false
+                true   // showPrompt = true -> MUESTRA EL MODAL DE CONFIRMACIÓN!
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error en daemon de detección de guardado:', err);
+      }
+    }, 1500);
 
     // Guardar automáticamente antes de salir o recargar la página
     window.addEventListener('beforeunload', () => {
@@ -795,6 +849,20 @@ class NDSEmulatorApp {
         }
         window.saveManager.showToast(`🎮 ${this.currentRomName} cargado. ¡A jugar!`, 'success');
       }
+
+      this.gameStartedTime = Date.now();
+      setTimeout(() => {
+        if (window.EJS_emulator?.gameManager) {
+          const gm = window.EJS_emulator.gameManager;
+          let sData = null;
+          if (typeof gm.getSaveFile === 'function') sData = gm.getSaveFile();
+          else if (typeof gm.saveSaveFiles === 'function') { gm.saveSaveFiles(); sData = gm.getSaveFile?.(false); }
+          if (sData) {
+            this.lastSavedHash = this.computeSaveHash(sData);
+            console.log('Hash inicial de partida capturado:', this.lastSavedHash);
+          }
+        }
+      }, 2500);
     };
 
     // Cargar loader.js de EmulatorJS si no está cargado
@@ -1043,7 +1111,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
             keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.3.11') {
+              if (key !== 'nds-emulator-v0.3.12') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1051,7 +1119,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.3.11').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.3.12').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

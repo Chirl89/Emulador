@@ -14,8 +14,8 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e60012'/><rect x='15' y='18' width='70' height='30' rx='5' fill='%23111'/><rect x='15' y='52' width='70' height='30' rx='5' fill='%23111'/><circle cx='30' cy='33' r='4' fill='%2300f0ff'/><circle cx='70' cy='67' r='4' fill='%23ff0055'/></svg>">
 
   <!-- Estilos con cache-busting -->
-  <link rel="stylesheet" href="css/style.css?v=0.3.11">
-  <link rel="stylesheet" href="css/touch-controls.css?v=0.3.11">
+  <link rel="stylesheet" href="css/style.css?v=0.3.12">
+  <link rel="stylesheet" href="css/touch-controls.css?v=0.3.12">
 
   <!-- Escudo indestructible contra controles virtuales, barra inferior, menús contextuales y capturas de EmulatorJS -->
   <style id="ejs-override-shield">
@@ -70,7 +70,7 @@
         <div class="logo-badge">NDS</div>
         <div class="title-group">
           <h1>NDS Web Emulator</h1>
-          <span class="version-badge" id="app-version">v0.3.11</span>
+          <span class="version-badge" id="app-version">v0.3.12</span>
         </div>
       </div>
 
@@ -212,10 +212,13 @@
           </div>
         </div>
 
-        <!-- Bloque Central: HUD de Velocidad + Botón Ajustes/Menú + Select/Start -->
+        <!-- Bloque Central: HUD de Velocidad + Botones Guardar/Ajustes + Select/Start -->
         <div class="touch-group touch-center">
           <div class="speed-hud-badge" id="touch-speed-hud">⚡ 1x</div>
-          <button class="touch-btn touch-settings-btn" id="btn-touch-menu">⚙️ AJUSTES</button>
+          <div class="touch-actions-row">
+            <button class="touch-btn touch-settings-btn" id="btn-touch-menu" title="Ajustes">⚙️</button>
+            <button class="touch-btn touch-save-btn" id="btn-touch-save" title="Guardar partida (.sav)">💾 SAVE</button>
+          </div>
           <div class="meta-buttons-row">
             <button class="touch-btn meta-btn" data-key="select">SELECT</button>
             <button class="touch-btn meta-btn" data-key="start">START</button>
@@ -385,10 +388,10 @@
   </div>
 
   <!-- Scripts del Emulador con cache-busting -->
-  <script src="js/save-manager.js?v=0.3.11"></script>
-  <script src="js/gamepad.js?v=0.3.11"></script>
-  <script src="js/touch-controls.js?v=0.3.11"></script>
-  <script src="js/app.js?v=0.3.11"></script>
+  <script src="js/save-manager.js?v=0.3.12"></script>
+  <script src="js/gamepad.js?v=0.3.12"></script>
+  <script src="js/touch-controls.js?v=0.3.12"></script>
+  <script src="js/app.js?v=0.3.12"></script>
 </body>
 </html>
 

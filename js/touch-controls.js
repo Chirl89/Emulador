@@ -114,6 +114,15 @@ class TouchControls {
       });
     }
 
+    const saveBtn = document.getElementById('btn-touch-save');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.app) window.app.triggerSave(false, false);
+      });
+    }
+
     // Auto-mostrar en móviles reales (Safari iOS / Android) sin mando físico
     if (isPureMobile && !this.gamepadConnected && this.userPreference !== 'hide') {
       this.show();

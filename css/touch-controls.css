@@ -228,7 +228,7 @@
    Columna Central (HUD Velocidad, Ajustes, Select / Start)
    ========================================================================== */
 .touch-center {
-  flex: 0 0 100px;
+  flex: 0 0 115px;
   justify-content: space-around;
   padding: 2px 0;
 }
@@ -237,23 +237,41 @@
   background: rgba(255, 184, 0, 0.15);
   border: 1px solid rgba(255, 184, 0, 0.5);
   color: #ffb800;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 12px;
   text-align: center;
   letter-spacing: 0.5px;
+}
+
+.touch-actions-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  width: 100%;
 }
 
 .touch-settings-btn {
   background: rgba(0, 240, 255, 0.15);
   border: 1.5px solid var(--color-primary);
   color: var(--color-primary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 6px 12px;
-  border-radius: 16px;
+  padding: 5px 8px;
+  border-radius: 14px;
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+.touch-save-btn {
+  background: rgba(0, 255, 136, 0.18);
+  border: 1.5px solid var(--color-success);
+  color: var(--color-success);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 14px;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
 }
 
 .meta-buttons-row {

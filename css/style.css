@@ -772,7 +772,7 @@ body.is-emulating .touch-controls-overlay,
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000 !important;
   padding: 16px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
