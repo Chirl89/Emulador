@@ -169,42 +169,45 @@ class SaveManager {
       return false;
     }
 
-    const filename = customFileName || `${this.sanitizeName(this.currentRomName)}.sav`;
+    const baseName = this.sanitizeName(this.currentRomName);
+    const filename = customFileName || `${baseName}.sav`;
     const uint8Data = saveData instanceof Uint8Array ? saveData : (saveData instanceof ArrayBuffer ? new Uint8Array(saveData) : null);
 
-    // 1. Guardar siempre copia de respaldo en IndexedDB persistente
-    await this.saveToIndexedDB(filename, uint8Data || saveData);
-
-    // 2. Si se fuerza descarga o es iOS (y no es auto-save silencioso), generar el archivo .sav
-    if (forceDownload || (this.isIOS && !isAutoSave)) {
-      this.generateSavFileDownload(saveData, filename);
-      return true;
+    // 1. Inyectar y mantener actualizado el archivo en la memoria virtual FS de EmulatorJS
+    if (window.EJS_emulator?.gameManager?.FS && uint8Data) {
+      try {
+        const gm = window.EJS_emulator.gameManager;
+        if (gm.FS.analyzePath('/data/saves').exists) {
+          gm.FS.writeFile(`/data/saves/${baseName}.sav`, uint8Data);
+          gm.FS.writeFile(`/data/saves/game.sav`, uint8Data);
+        }
+      } catch (e) {}
     }
 
-    // 3. Escribir directamente en el disco si hay carpeta vinculada (Opera GX, Chrome, ROG Ally)
-    if (this.directoryHandle && !forceDownload) {
+    // 2. Guardar siempre en almacenamiento persistente con el nombre exacto de la ROM
+    await this.saveToIndexedDB(filename, uint8Data || saveData);
+    await this.saveToIndexedDB(`${baseName}.sav`, uint8Data || saveData);
+    await this.saveToIndexedDB(`game.sav`, uint8Data || saveData);
+
+    // 3. Si hay carpeta en disco vinculada (o seleccionada), sobreescribir silenciosamente
+    if (this.directoryHandle) {
       try {
         const fileHandle = await this.directoryHandle.getFileHandle(filename, { create: true });
         const writable = await fileHandle.createWritable();
         await writable.write(saveData);
         await writable.close();
         if (!isAutoSave) {
-          this.showToast(`💾 Partida sobreescrita en disco: ${this.directoryHandle.name}/${filename}`, 'success');
-        } else {
-          console.log(`[AutoSave] Sincronizado ${filename} en disco.`);
+          this.showToast(`💾 Partida guardada automáticamente: ${filename}`, 'success');
         }
         return true;
       } catch (err) {
-        console.error('Error sobreescribiendo en disco:', err);
-        if (!isAutoSave) {
-          this.generateSavFileDownload(saveData, filename);
-        }
+        console.error('Error escribiendo en carpeta vinculada:', err);
       }
-    } else {
-      // Sin carpeta vinculada en PC: si es guardado manual, generar archivo .sav
-      if (!isAutoSave) {
-        this.generateSavFileDownload(saveData, filename);
-      }
+    }
+
+    // 4. Si se fuerza descarga manual o en iOS (cuando no es auto-save silencioso), generar el .sav
+    if (forceDownload || (this.isIOS && !isAutoSave)) {
+      this.generateSavFileDownload(saveData, filename);
     }
 
     return true;
