@@ -29,6 +29,9 @@ desktop.ini
 
 # Logs y Temporales
 *.log
+*.png
+*.jpg
+*.jpeg
 .vscode/
 .idea/
 node_modules/
