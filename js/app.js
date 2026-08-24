@@ -150,25 +150,31 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Cambia dinámicamente la velocidad de emulación (1x a 10x) mediante botones L2/R2
+   * Cambia dinámicamente la velocidad de emulación entre límites reales (1x, 1.5x, 2x, 3x Turbo)
    */
   changeEmulationSpeed(direction) {
-    let nextSpeed = Math.round(this.emulationSpeed + direction);
-    if (nextSpeed > 10) nextSpeed = 10;
-    if (nextSpeed < 1) nextSpeed = 1;
+    const availableSpeids = [1.0, 1.5, 2.0, 3.0];
+    let currentIndex = availableSpeids.findIndex(s => Math.abs(s - this.emulationSpeed) < 0.1);
+    if (currentIndex === -1) currentIndex = 0;
 
-    this.emulationSpeed = nextSpeed;
+    let nextIndex = currentIndex + direction;
+    if (nextIndex >= availableSpeids.length) nextIndex = availableSpeids.length - 1;
+    if (nextIndex < 0) nextIndex = 0;
+
+    this.emulationSpeed = availableSpeids[nextIndex];
     this.applyEmulationSpeed(this.emulationSpeed);
+
+    const speedLabel = this.emulationSpeed === 1.0 ? '1x' : (this.emulationSpeed === 3.0 ? '3x (Máx)' : `${this.emulationSpeed}x`);
 
     // Actualizar badge visual en controles táctiles
     const speedBadge = document.getElementById('touch-speed-hud');
     if (speedBadge) {
-      speedBadge.textContent = `⚡ x${this.emulationSpeed}`;
+      speedBadge.textContent = `⚡ ${speedLabel}`;
       speedBadge.style.color = this.emulationSpeed > 1 ? '#00f0ff' : '#ffb800';
     }
 
-    // Mostrar OSD superior flotante (x2, x3, etc.)
-    this.showSpeedOSD(this.emulationSpeed > 1 ? `x${this.emulationSpeed}` : 'x1');
+    // Mostrar OSD superior flotante
+    this.showSpeedOSD(speedLabel);
   }
 
   /**

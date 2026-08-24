@@ -54,7 +54,7 @@ class TouchControls {
         btn.classList.add('pressed');
         this.triggerHaptic(25);
 
-        // Manejo especial de botones L2 y R2 para control dinámico de velocidad (1x a 10x)
+        // Manejo especial de botones L2 y R2 para control dinámico de velocidad (1x a 3x Turbo)
         if (keyName === 'r2') {
           if (window.app && typeof window.app.changeEmulationSpeed === 'function') {
             window.app.changeEmulationSpeed(1);

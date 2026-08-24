@@ -122,7 +122,7 @@ class GamepadController {
     };
 
     // 1. Atajos de función especial y velocidad
-    // RT / R2 (Botón 7 o gatillo analógico derecho) -> Acelerar emulación (+1x, hasta 10x)
+    // RT / R2 (Botón 7 o gatillo analógico derecho) -> Acelerar emulación (1x -> 1.5x -> 2x -> 3x Turbo)
     if (justPressed(7)) {
       if (window.app && typeof window.app.changeEmulationSpeed === 'function') {
         window.app.changeEmulationSpeed(1);
@@ -130,7 +130,7 @@ class GamepadController {
       }
     }
 
-    // LT / L2 (Botón 6 o gatillo analógico izquierdo) -> Desacelerar emulación (-1x, hasta 1x)
+    // LT / L2 (Botón 6 o gatillo analógico izquierdo) -> Desacelerar emulación (hacia 1x)
     if (justPressed(6)) {
       if (window.app && typeof window.app.changeEmulationSpeed === 'function') {
         window.app.changeEmulationSpeed(-1);
