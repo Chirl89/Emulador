@@ -225,7 +225,6 @@ class NDSEmulatorApp {
    */
   updateSpeedUI() {
     const speedFormatted = this.emulationSpeed === 1.0 ? '1x' : `${this.emulationSpeed}x`;
-    const speedLabel = this.emulationSpeed === 1.0 ? '1x' : (this.emulationSpeed === 3.0 ? '3x (Máx)' : `${this.emulationSpeed}x`);
 
     // 1. Actualizar badge visual en controles táctiles
     const speedBadge = document.getElementById('touch-speed-hud');
@@ -248,12 +247,12 @@ class NDSEmulatorApp {
       }
     }
 
-    // 3. Mostrar OSD superior flotante
-    this.showSpeedOSD(speedLabel);
+    // 3. Mostrar OSD superior flotante con el número exacto
+    this.showSpeedOSD(speedFormatted);
   }
 
   /**
-   * Muestra el badge OSD flotante superior con la velocidad actual (x2, x3, etc.)
+   * Muestra el badge OSD flotante superior con la velocidad actual (1x, 2x, etc.)
    */
   showSpeedOSD(text) {
     const osd = document.getElementById('speed-osd-badge');
@@ -266,11 +265,11 @@ class NDSEmulatorApp {
     clearTimeout(this.speedOsdTimeout);
     this.speedOsdTimeout = setTimeout(() => {
       osd.classList.remove('show');
-    }, 1200);
+    }, 1000);
   }
 
   /**
-   * Aplica la velocidad en el emulador WebAssembly
+   * Aplica la velocidad en el emulador WebAssembly sin avisos intrusivos
    */
   applyEmulationSpeed(speed) {
     if (window.EJS_emulator) {
@@ -281,9 +280,6 @@ class NDSEmulatorApp {
       if (gm && gm.functions) {
         if (typeof gm.functions.setFastForwardRatio === 'function') {
           try { gm.functions.setFastForwardRatio(speed); } catch (e) {}
-        }
-        if (typeof gm.functions.toggleFastForward === 'function') {
-          try { gm.functions.toggleFastForward(speed > 1.0 ? 1 : 0); } catch (e) {}
         }
       }
     }
@@ -818,6 +814,7 @@ class NDSEmulatorApp {
 
     // Desactivar capturas de pantalla, menús intrusivos, cues, trucos y marcas de agua de EmulatorJS
     window.EJS_disableCue = true;
+    window.EJS_cues = false;
     window.EJS_screenCapture = false;
     window.EJS_Buttons = false;
     window.EJS_buttons = {
@@ -893,6 +890,8 @@ class NDSEmulatorApp {
     
     // Opciones de alto rendimiento adaptadas para fluidez a 60 FPS en Opera y Safari
     window.EJS_defaultOptions = {
+      "notification_show_fast_forward": "false",
+      "video_font_enable": "false",
       "desmume_screens_layout": isVertical ? "top/bottom" : "left/right",
       "desmume_pointer_type": "touch",
       "desmume_pointer_device": "touch",
