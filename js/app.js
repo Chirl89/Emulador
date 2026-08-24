@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.1.5
+ * Versión: v0.1.6
  */
 
 // Interceptor a nivel de prototipo para neutralizar la creación de virtualGamepad de EmulatorJS
@@ -578,7 +578,28 @@ class NDSEmulatorApp {
   initPWA() {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(err => {
+        // En entorno local (Live Server), actualizar y limpiar cachés obsoletas automáticamente
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (let registration of registrations) {
+              registration.update();
+            }
+          });
+          if ('caches' in window) {
+            caches.keys().then((keys) => {
+              keys.forEach((key) => {
+                if (key !== 'nds-emulator-v0.1.6') {
+                  console.log('Purgando caché obsoleta:', key);
+                  caches.delete(key);
+                }
+              });
+            });
+          }
+        }
+
+        navigator.serviceWorker.register('sw.js?v=0.1.6').then((reg) => {
+          reg.update();
+        }).catch(err => {
           console.log('SW registration error:', err);
         });
       });

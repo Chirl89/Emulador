@@ -1,10 +1,10 @@
 /**
  * NDS Web Emulator - Service Worker
- * Caché offline para Safari iOS y GitHub Pages
- * Versión: v0.0.1
+ * Caché offline inteligente (Network-First) para Safari iOS y GitHub Pages
+ * Versión: v0.1.6
  */
 
-const CACHE_NAME = 'nds-emulator-v0.0.1';
+const CACHE_NAME = 'nds-emulator-v0.1.6';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -19,21 +19,23 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (e) => {
+  console.log('[Service Worker] Instalando v0.1.6...');
+  self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Cacheando activos principales...');
       return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
 self.addEventListener('activate', (e) => {
+  console.log('[Service Worker] Activando v0.1.6 y purgando cachés obsoletas...');
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(
         keyList.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[Service Worker] Eliminando caché antigua:', key);
+            console.log('[Service Worker] Eliminada caché antigua:', key);
             return caches.delete(key);
           }
         })
@@ -43,17 +45,21 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Para peticiones externas a la CDN de WebAssembly, responder por red primero y fallback a cache
-  if (e.request.url.includes('cdn.emulatorjs.org')) {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
-    );
-    return;
-  }
-
+  // Estrategia Network-First: Siempre intenta obtener el código más nuevo de la red
   e.respondWith(
-    caches.match(e.request).then((response) => {
-      return response || fetch(e.request);
-    })
+    fetch(e.request)
+      .then((response) => {
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(e.request, responseToCache);
+          });
+        }
+        return response;
+      })
+      .catch(() => {
+        // Fallback a caché si no hay conexión a internet
+        return caches.match(e.request);
+      })
   );
 });
