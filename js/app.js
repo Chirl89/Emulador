@@ -82,6 +82,27 @@ class NDSEmulatorApp {
    * Oculta de forma permanente y segura cualquier menú modal, truco, menú contextual o captura del motor
    */
   initEngineGuard() {
+    const player = document.getElementById('game-player');
+    if (player && !this.domObserver) {
+      const observer = new MutationObserver(() => {
+        const toRemove = player.querySelectorAll(
+          'div[class*="cheat"], div[class*="netplay"], div[class*="control"], ' +
+          'div[class*="drag"], div[class*="about"], div[class*="popup"], ' +
+          'div[class*="modal"], div[class*="menu"], div[class*="bar"], ' +
+          'div[class*="cue"], div[class*="side"], div[class*="text"], ' +
+          'button, p, h2, h3, h4, span.ejs_menu_text, .ejs_list_selector, ' +
+          '.ejs_context_menu_tab, .ejs_virtualGamepad, [class*="ejs_virtualGamepad"], [class*="ejs_menu"]'
+        );
+        toRemove.forEach(el => {
+          if (el.tagName !== 'CANVAS' && !el.classList.contains('ejs_canvas') && !el.classList.contains('ejs_game') && !el.classList.contains('ejs_parent')) {
+            el.remove();
+          }
+        });
+      });
+      observer.observe(player, { childList: true, subtree: true });
+      this.domObserver = observer;
+    }
+
     const purgeIntrusiveElements = () => {
       // 1. Remover botones de captura, barra inferior ejs_menu_bar, menús gigantes, trucos, red y modales de EmulatorJS
       const intrusive = document.querySelectorAll(
@@ -126,7 +147,7 @@ class NDSEmulatorApp {
       }
     };
 
-    setInterval(purgeIntrusiveElements, 60);
+    setInterval(purgeIntrusiveElements, 50);
   }
 
   /**
