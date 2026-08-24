@@ -433,6 +433,34 @@ html, body {
   overflow: hidden;
 }
 
+/* Indicador OSD Superior de Velocidad (x2, x3, etc.) */
+.speed-osd-badge {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%) translateY(-30px);
+  background: rgba(10, 12, 18, 0.94);
+  color: #00f0ff;
+  border: 1px solid rgba(0, 240, 255, 0.5);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.35), inset 0 0 10px rgba(0, 240, 255, 0.15);
+  padding: 8px 24px;
+  border-radius: 30px;
+  font-family: var(--font-primary, sans-serif);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  z-index: 250;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.speed-osd-badge.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* Overlay de carga elegante para evitar pantallas grises/blancas */
 .emulator-loading-overlay {
   position: absolute;

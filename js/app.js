@@ -163,13 +163,29 @@ class NDSEmulatorApp {
     // Actualizar badge visual en controles táctiles
     const speedBadge = document.getElementById('touch-speed-hud');
     if (speedBadge) {
-      speedBadge.textContent = `⚡ ${this.emulationSpeed}x`;
+      speedBadge.textContent = `⚡ x${this.emulationSpeed}`;
       speedBadge.style.color = this.emulationSpeed > 1 ? '#00f0ff' : '#ffb800';
     }
 
-    if (window.saveManager) {
-      window.saveManager.showToast(`⚡ Velocidad: ${this.emulationSpeed}x`, 'info');
-    }
+    // Mostrar OSD superior flotante (x2, x3, etc.)
+    this.showSpeedOSD(this.emulationSpeed > 1 ? `x${this.emulationSpeed}` : 'x1');
+  }
+
+  /**
+   * Muestra el badge OSD flotante superior con la velocidad actual (x2, x3, etc.)
+   */
+  showSpeedOSD(text) {
+    const osd = document.getElementById('speed-osd-badge');
+    if (!osd) return;
+
+    osd.textContent = `⚡ ${text}`;
+    osd.style.color = this.emulationSpeed > 1 ? '#00f0ff' : '#ffb800';
+    osd.classList.add('show');
+
+    clearTimeout(this.speedOsdTimeout);
+    this.speedOsdTimeout = setTimeout(() => {
+      osd.classList.remove('show');
+    }, 1200);
   }
 
   /**
@@ -660,7 +676,10 @@ class NDSEmulatorApp {
     window.EJS_core = this.selectedCore; // 'desmume' o 'melonds'
     window.EJS_gameUrl = romUrl;
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+    window.EJS_startOnLoad = true;
     window.EJS_startOnLoaded = true;
+    window.EJS_startBtnName = "Iniciar";
+    window.EJS_language = "es-ES";
     window.EJS_backgroundColor = '#000000';
     
     // Opciones de alto rendimiento adaptadas para fluidez a 60 FPS en Opera y Safari
