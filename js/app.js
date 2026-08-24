@@ -252,18 +252,34 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Aplica la velocidad en el emulador WebAssembly sin avisos intrusivos
+   * Aplica la velocidad en el emulador WebAssembly de forma robusta
    */
   applyEmulationSpeed(speed) {
-    if (window.EJS_emulator) {
-      if (typeof window.EJS_emulator.setSpeed === 'function') {
-        try { window.EJS_emulator.setSpeed(speed); } catch (e) {}
-      }
-      const gm = window.EJS_emulator.gameManager;
-      if (gm && gm.functions) {
-        if (typeof gm.functions.setFastForwardRatio === 'function') {
-          try { gm.functions.setFastForwardRatio(speed); } catch (e) {}
+    const isFast = (speed > 1.0);
+    const ratio = Number(speed);
+
+    // 1. Método setSpeed de EmulatorJS (ajusta audio buffer y clock)
+    if (window.EJS_emulator && typeof window.EJS_emulator.setSpeed === 'function') {
+      try { window.EJS_emulator.setSpeed(ratio); } catch (e) {}
+    }
+
+    // 2. GameManager & RetroArch Core C-WASM (toggle_fastforward y set_ff_ratio)
+    const gm = window.EJS_emulator?.gameManager;
+    if (gm) {
+      try {
+        if (typeof gm.setFastForwardRatio === 'function') {
+          gm.setFastForwardRatio(ratio);
+        } else if (typeof gm.functions?.setFastForwardRatio === 'function') {
+          gm.functions.setFastForwardRatio(ratio);
         }
+
+        if (typeof gm.toggleFastForward === 'function') {
+          gm.toggleFastForward(isFast ? 1 : 0);
+        } else if (typeof gm.functions?.toggleFastForward === 'function') {
+          gm.functions.toggleFastForward(isFast ? 1 : 0);
+        }
+      } catch (e) {
+        console.warn('Error aplicando aceleración en GameManager:', e);
       }
     }
   }
@@ -968,6 +984,9 @@ class NDSEmulatorApp {
 
       // 2. Aplicar opciones de núcleo para Pantalla Dual y Stylus Táctil
       this.applyCoreTouchSettings();
+
+      // Aplicar velocidad inicial si estaba acelerado
+      this.applyEmulationSpeed(this.emulationSpeed);
 
       // 3. Escribir partida previa directamente en la memoria virtual FS si existe
       if (window.saveManager) {
