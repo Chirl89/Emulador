@@ -1,46 +1,8 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.1.6
+ * Versión: v0.1.7
  */
-
-// Interceptor a nivel de prototipo para neutralizar la creación de virtualGamepad de EmulatorJS
-(function() {
-  let _EmulatorJS = window.EmulatorJS;
-  const patchPrototype = (cls) => {
-    if (cls && cls.prototype) {
-      cls.prototype.setVirtualGamepad = function() {
-        this.virtualGamepad = document.createElement('div');
-        this.virtualGamepad.style.display = 'none';
-        this.toggleVirtualGamepad = function() {};
-      };
-      const originalInit = cls.prototype.init;
-      if (originalInit) {
-        cls.prototype.init = function(...args) {
-          this.hasTouchScreen = false;
-          this.touch = false;
-          return originalInit.apply(this, args);
-        };
-      }
-    }
-  };
-
-  if (_EmulatorJS) patchPrototype(_EmulatorJS);
-
-  try {
-    Object.defineProperty(window, 'EmulatorJS', {
-      configurable: true,
-      enumerable: true,
-      get() {
-        return _EmulatorJS;
-      },
-      set(val) {
-        _EmulatorJS = val;
-        patchPrototype(_EmulatorJS);
-      }
-    });
-  } catch (e) {}
-})();
 
 class NDSEmulatorApp {
   constructor() {
@@ -64,39 +26,24 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Destructor continuo de controles duplicados generados por el motor EmulatorJS
+   * Oculta de forma permanente y segura cualquier botón virtual del motor
    */
   initEngineGuard() {
-    const killEngineGamepads = () => {
-      const selectors = [
-        '.ejs_virtualGamepad',
-        '.ejs_virtualGamepad_open',
-        '.ejs_dpad_main',
-        '.ejs_virtualGamepad_button',
-        '.ejs_virtualGamepad_left',
-        '.ejs_virtualGamepad_right',
-        '.ejs_virtualGamepad_dpad',
-        '.ejs_menu_button',
-        '[class*="ejs_virtualGamepad"]',
-        '[class*="ejs_dpad"]'
-      ];
-      selectors.forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => el.remove());
-      });
-
-      // Asegurar que el escudo CSS siempre esté al final del <head>
-      const shield = document.getElementById('ejs-override-shield');
-      if (shield && document.head && document.head.lastElementChild !== shield) {
-        document.head.appendChild(shield);
+    const hideEngineGamepads = () => {
+      if (window.EJS_emulator) {
+        if (typeof window.EJS_emulator.toggleVirtualGamepad === 'function') {
+          try { window.EJS_emulator.toggleVirtualGamepad(false); } catch (e) {}
+        }
+        if (window.EJS_emulator.virtualGamepad) {
+          window.EJS_emulator.virtualGamepad.style.display = 'none';
+        }
+        if (window.EJS_emulator.elements && window.EJS_emulator.elements.menuToggle) {
+          window.EJS_emulator.elements.menuToggle.style.display = 'none';
+        }
       }
     };
 
-    // Observador permanente de mutaciones DOM
-    const observer = new MutationObserver(killEngineGamepads);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-
-    // Barrido periódico por seguridad
-    setInterval(killEngineGamepads, 200);
+    setInterval(hideEngineGamepads, 500);
   }
 
   initUI() {
