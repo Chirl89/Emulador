@@ -1,13 +1,28 @@
 /* ==========================================================================
    NDS Web Emulator - Controles Táctiles para Safari iOS
-   touch-controls.css v0.1.1
+   touch-controls.css v0.1.2
    ========================================================================== */
+
+/* Ocultar completamente cualquier control táctil duplicado generado internamente por EmulatorJS */
+.ejs_virtualGamepad,
+.ejs_virtualGamepad_open,
+.ejs_dpad_main,
+.ejs_virtualGamepad_button,
+.ejs_virtualGamepad_left,
+.ejs_virtualGamepad_right,
+[class*="ejs_virtualGamepad"] {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  z-index: -100 !important;
+}
 
 .touch-controls-overlay {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 50;
+  z-index: 200;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;

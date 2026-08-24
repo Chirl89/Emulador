@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.1.0
+ * Versión: v0.1.2
  */
 
 class NDSEmulatorApp {
@@ -281,10 +281,22 @@ class NDSEmulatorApp {
     window.EJS_mouse = true; // Soporte táctil / stylus interactivo en pantalla inferior NDS
     window.EJS_noAutoFocus = false;
     
+    // Desactivar gamepad virtual duplicado interno de EmulatorJS
+    window.EJS_VirtualGamepadSettings = { disabled: true };
+    
     // Opciones adicionales para Handheld / ROG Ally
     window.EJS_Settings = {
       default_controls: true,
       volume: 1.0
+    };
+
+    window.EJS_onGameStart = () => {
+      // Remover cualquier botón o gamepad residual del motor
+      const duplicates = document.querySelectorAll('.ejs_virtualGamepad, .ejs_virtualGamepad_open, .ejs_dpad_main, [class*="ejs_virtualGamepad"]');
+      duplicates.forEach(el => el.remove());
+      if (window.EJS_emulator && window.EJS_emulator.virtualGamepad) {
+        window.EJS_emulator.virtualGamepad.style.display = 'none';
+      }
     };
 
     // Cargar loader.js de EmulatorJS si no está cargado
@@ -300,12 +312,14 @@ class NDSEmulatorApp {
       console.log('EmulatorJS cargado correctamente.');
       this.isEmulating = true;
       
-      // Auto-enfoque al contenedor de juego
+      // Auto-enfoque al contenedor de juego y limpieza de controles duplicados
       setTimeout(() => {
         const playerElem = document.querySelector('#game-player');
         if (playerElem) {
           playerElem.focus?.();
         }
+        const duplicates = document.querySelectorAll('.ejs_virtualGamepad, .ejs_virtualGamepad_open, .ejs_dpad_main, [class*="ejs_virtualGamepad"]');
+        duplicates.forEach(el => el.remove());
       }, 500);
 
       if (window.saveManager) {

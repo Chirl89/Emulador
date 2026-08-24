@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - ROG Ally & Safari Edition
-   Estilos Principales v0.1.1
+   Estilos Principales v0.1.2
    ========================================================================== */
 
 :root {
@@ -433,6 +433,22 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Ocultar completamente el gamepad virtual duplicado interno de EmulatorJS */
+.ejs_virtualGamepad,
+.ejs_virtualGamepad_open,
+.ejs_dpad_main,
+.ejs_virtualGamepad_button,
+.ejs_virtualGamepad_left,
+.ejs_virtualGamepad_right,
+.ejs_virtualGamepad_dpad,
+[class*="ejs_virtualGamepad"] {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  z-index: -9999 !important;
 }
 
 .game-player iframe,

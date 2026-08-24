@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Touch Controls
  * Controles virtuales en pantalla para Safari iOS / ROG Ally / Pantalla Táctil
- * Versión: v0.1.1
+ * Versión: v0.1.2
  */
 
 class TouchControls {
@@ -11,7 +11,6 @@ class TouchControls {
     this.visible = false;
     this.gamepadConnected = false;
     this.userPreference = 'auto'; // 'auto', 'show', 'hide'
-    this.activeTouches = new Map(); // identifier -> keyName
 
     // Mapa de teclas y códigos exactos esperados por EmulatorJS (DeSmuME)
     this.keyDefinitions = {
@@ -43,56 +42,48 @@ class TouchControls {
       const keyName = btn.dataset.key;
       if (!keyName && btn.id !== 'btn-touch-menu') return;
 
-      const pressBtn = () => {
+      let isPressed = false;
+
+      const pressBtn = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        if (isPressed) return;
+        isPressed = true;
         btn.classList.add('pressed');
         this.triggerHaptic(20);
         if (keyName) this.sendKeyEvent(keyName, true);
       };
 
-      const releaseBtn = () => {
+      const releaseBtn = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        if (!isPressed) return;
+        isPressed = false;
         btn.classList.remove('pressed');
         if (keyName) this.sendKeyEvent(keyName, false);
       };
 
-      // Pointer Events (Soporte unificado táctil y ratón)
-      btn.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        btn.setPointerCapture?.(e.pointerId);
-        this.activeTouches.set(e.pointerId, keyName);
-        pressBtn();
-      });
-
-      btn.addEventListener('pointerup', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.activeTouches.delete(e.pointerId);
-        releaseBtn();
-      });
-
-      btn.addEventListener('pointercancel', (e) => {
-        this.activeTouches.delete(e.pointerId);
-        releaseBtn();
-      });
-
-      // Eventos táctiles directos de respaldo para WebKit/Safari
-      btn.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        pressBtn();
-      }, { passive: false });
-
-      btn.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        releaseBtn();
-      }, { passive: false });
-
-      btn.addEventListener('touchcancel', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        releaseBtn();
-      }, { passive: false });
+      // Si el navegador soporta Pointer Events (Opera GX, Chrome, Safari 13+, Edge)
+      if (window.PointerEvent) {
+        btn.addEventListener('pointerdown', pressBtn);
+        btn.addEventListener('pointerup', releaseBtn);
+        btn.addEventListener('pointercancel', releaseBtn);
+        btn.addEventListener('pointerleave', (e) => {
+          if (isPressed && e.buttons === 0) releaseBtn(e);
+        });
+      } else {
+        // Fallback táctil y ratón para navegadores sin PointerEvent
+        btn.addEventListener('touchstart', pressBtn, { passive: false });
+        btn.addEventListener('touchend', releaseBtn, { passive: false });
+        btn.addEventListener('touchcancel', releaseBtn, { passive: false });
+        btn.addEventListener('mousedown', pressBtn);
+        btn.addEventListener('mouseup', releaseBtn);
+        btn.addEventListener('mouseleave', releaseBtn);
+      }
     });
 
     const menuBtn = document.getElementById('btn-touch-menu');
