@@ -678,8 +678,10 @@ class NDSEmulatorApp {
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoad = true;
     window.EJS_startOnLoaded = true;
+    window.EJS_startButtonName = "Iniciar";
     window.EJS_startBtnName = "Iniciar";
-    window.EJS_language = "es-ES";
+    window.EJS_disableAutoLang = true; // Evita la carga del archivo de localización defectuoso de CDN que produce "undefined"
+    window.EJS_language = "en-US";
     window.EJS_backgroundColor = '#000000';
     
     // Opciones de alto rendimiento adaptadas para fluidez a 60 FPS en Opera y Safari
@@ -730,6 +732,15 @@ class NDSEmulatorApp {
     window.EJS_onSaveUpdate = () => {
       console.log('Evento onSaveUpdate detectado: sincronizando guardado...');
       this.triggerSave(true);
+    };
+
+    window.EJS_ready = () => {
+      console.log('Evento ready detectado: auto-iniciando si el motor creó botón...');
+      const startBtn = document.querySelector('.ejs_start_button');
+      if (startBtn) {
+        startBtn.click();
+        startBtn.remove();
+      }
     };
 
     window.EJS_onGameStart = async () => {
