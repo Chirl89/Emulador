@@ -302,22 +302,32 @@ class SaveManager {
    * Genera la descarga o diálogo de guardado del archivo .sav real (Compatible con iOS Safari y PC)
    */
   generateSavFileDownload(saveData, filename) {
+    if (!saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) {
+      this.showToast('⚠️ No hay datos de partida listos para descargar.', 'warning');
+      return;
+    }
+
+    const now = Date.now();
+    if (this.lastDownloadTime && (now - this.lastDownloadTime < 2500)) {
+      console.log('Descarga ignorada por cooldown de seguridad');
+      return;
+    }
+    this.lastDownloadTime = now;
+
     const blob = saveData instanceof Blob ? saveData : new Blob([saveData], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
       try { document.body.removeChild(a); } catch (e) {}
       URL.revokeObjectURL(url);
-    }, 15000);
+    }, 10000);
 
     if (this.isIOS) {
-      this.showToast(`💾 Archivo "${filename}" generado en la app Archivos / Descargas de tu iPhone.`, 'success');
+      this.showToast(`💾 Archivo "${filename}" generado en tu iPhone.`, 'success');
     } else {
       this.showToast(`📥 Descargando archivo de guardado: ${filename}`, 'success');
     }

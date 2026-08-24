@@ -139,12 +139,10 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Inicializa el servicio de auto-guardado en segundo plano y detección activa de guardado en el juego
+   * Inicializa el servicio de auto-guardado silencioso en segundo plano
    */
   initAutoSaveDaemon() {
-    this.lastSavedHash = null;
-
-    // Polling activo cada 1.5 segundos para capturar en tiempo real cuando el juego escribe a SRAM (Guardar en Pokémon)
+    // Sincronización silenciosa periódica en IndexedDB cada 4 segundos sin interrumpir el juego
     this.autoSaveInterval = setInterval(() => {
       if (!this.isEmulating || this.isPaused || !window.EJS_emulator?.gameManager) {
         return;
@@ -162,31 +160,19 @@ class NDSEmulatorApp {
         }
 
         if (saveData && (saveData.byteLength || saveData.length) > 0) {
-          const currentHash = this.computeSaveHash(saveData);
-
-          // Si es el inicio de la sesión, fijar el hash base sin molestar
-          if (this.lastSavedHash === null) {
-            this.lastSavedHash = currentHash;
-          } else if (currentHash !== this.lastSavedHash && (!this.gameStartedTime || Date.now() - this.gameStartedTime > 4000)) {
-            // ¡CAMBIO DETECTADO EN LA MEMORIA DE GUARDADO! (El usuario guardó en el juego)
-            console.log('🎮 [SRAM Guardado Detectado] Hash anterior:', this.lastSavedHash, '-> Nuevo:', currentHash);
-            this.lastSavedHash = currentHash;
-
-            if (window.saveManager) {
-              window.saveManager.saveGameData(
-                saveData,
-                `${window.saveManager.sanitizeName(this.currentRomName)}.sav`,
-                false, // isAutoSave = false
-                false, // forceDownload = false
-                true   // showPrompt = true -> MUESTRA EL MODAL DE CONFIRMACIÓN!
-              );
-            }
-          }
+          // Guardado silencioso en memoria interna persistente (IndexedDB)
+          window.saveManager?.saveGameData(
+            saveData,
+            `${window.saveManager.sanitizeName(this.currentRomName)}.sav`,
+            true,  // isAutoSave = true (100% silencioso, cero descargas automáticas)
+            false, // forceDownload = false
+            false  // showPrompt = false
+          );
         }
       } catch (err) {
-        console.warn('Error en daemon de detección de guardado:', err);
+        console.warn('Error en daemon de auto-guardado:', err);
       }
-    }, 1500);
+    }, 4000);
 
     // Guardar automáticamente antes de salir o recargar la página
     window.addEventListener('beforeunload', () => {
@@ -1127,7 +1113,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.3.13') {
+              if (key !== 'nds-emulator-v0.3.14') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1135,7 +1121,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.3.13').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.3.14').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
