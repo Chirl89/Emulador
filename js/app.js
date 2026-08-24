@@ -408,16 +408,16 @@ class NDSEmulatorApp {
     // Configuración de PubNub Cloud Saves en el Modal de Ajustes
     const pubKeyInput = document.getElementById('pubnub-pub-input');
     const subKeyInput = document.getElementById('pubnub-sub-input');
-    const channelInput = document.getElementById('pubnub-channel-input');
+    const channelDisplay = document.getElementById('pubnub-channel-display');
     const savePubNubBtn = document.getElementById('btn-save-pubnub-config');
     const testPubNubBtn = document.getElementById('btn-test-pubnub');
     const pubNubResult = document.getElementById('pubnub-test-result');
 
     const syncPubNubInputs = () => {
       if (window.cloudSaveManager) {
-        if (pubKeyInput) pubKeyInput.value = window.cloudSaveManager.publishKey || '';
-        if (subKeyInput) subKeyInput.value = window.cloudSaveManager.subscribeKey || '';
-        if (channelInput) channelInput.value = window.cloudSaveManager.channel || 'soulsilver-cloud-saves';
+        if (pubKeyInput) pubKeyInput.value = window.cloudSaveManager.publishKey || 'demo';
+        if (subKeyInput) subKeyInput.value = window.cloudSaveManager.subscribeKey || 'demo';
+        if (channelDisplay) channelDisplay.value = window.cloudSaveManager.getChannelForRom(this.currentRomName);
       }
     };
     syncPubNubInputs();
@@ -427,14 +427,13 @@ class NDSEmulatorApp {
         if (window.cloudSaveManager) {
           const ok = window.cloudSaveManager.saveCredentials(
             pubKeyInput?.value,
-            subKeyInput?.value,
-            channelInput?.value
+            subKeyInput?.value
           );
           if (pubNubResult) {
-            pubNubResult.textContent = ok ? '✅ Conectado a PubNub' : '⚠️ Claves incompletas';
+            pubNubResult.textContent = ok ? '✅ Claves guardadas' : '⚠️ Error en claves';
             pubNubResult.style.color = ok ? 'var(--color-success)' : 'var(--color-warning)';
           }
-          window.saveManager?.showToast(ok ? '☁️ PubNub configurado con éxito' : '⚠️ Introduce Publish y Subscribe Key', ok ? 'success' : 'warning');
+          window.saveManager?.showToast('☁️ Configuración de PubNub guardada', 'success');
         }
       });
     }
@@ -448,8 +447,7 @@ class NDSEmulatorApp {
         if (window.cloudSaveManager) {
           const res = await window.cloudSaveManager.testConnection(
             pubKeyInput?.value,
-            subKeyInput?.value,
-            channelInput?.value
+            subKeyInput?.value
           );
           if (pubNubResult) {
             pubNubResult.textContent = res.success ? '✅ Conexión exitosa' : '❌ Error';
@@ -1169,7 +1167,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.3.14') {
+              if (key !== 'nds-emulator-v0.3.16') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1177,7 +1175,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.3.14').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.3.16').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

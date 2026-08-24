@@ -1,176 +1,184 @@
 /**
- * NDS Web Emulator - Cloud Save Manager (PubNub Files API)
+ * NDS Web Emulator - Cloud Save Manager
  * Sincronización en tiempo real y persistencia en la nube entre iPhone, PC y ROG Ally
- * Versión: v0.3.15
+ * Utiliza credenciales PubNub con canal dinámico por cada ROM (${romName}-save)
+ * Versión: v0.3.16
  */
 
 class CloudSaveManager {
   constructor() {
     this.pubnub = null;
-    this.publishKey = localStorage.getItem('pubnub_pub_key') || '';
-    this.subscribeKey = localStorage.getItem('pubnub_sub_key') || '';
-    this.channel = localStorage.getItem('pubnub_channel') || 'soulsilver-cloud-saves';
+    // Por defecto usa las credenciales demo de PubNub (como en FitDuo), o las personalizadas del usuario
+    this.publishKey = localStorage.getItem('pubnub_pub_key') || 'demo';
+    this.subscribeKey = localStorage.getItem('pubnub_sub_key') || 'demo';
     this.userId = localStorage.getItem('pubnub_user_id') || ('user_' + Math.random().toString(36).substring(2, 9));
     this.isUploading = false;
-    this.lastUploadedHash = null;
     this.lastUploadTime = 0;
+    this.currentChannel = 'game-save';
 
     localStorage.setItem('pubnub_user_id', this.userId);
     this.initPubNub();
   }
 
   /**
-   * Inicializa la instancia del cliente PubNub si las claves están configuradas
+   * Genera el nombre de canal único y aislado para cada ROM
+   * Formato: ${nombre_del_juego}-save (ej. pokemon_edicion_plata_soulsilver-save)
+   */
+  getChannelForRom(romName) {
+    const rawName = (romName || window.app?.currentRomName || 'Pokemon - Edicion Plata SoulSilver')
+      .replace(/\.(nds|zip|7z|sav|dsv)$/i, '')
+      .trim();
+
+    const cleanName = rawName
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quitar tildes y acentos
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .replace(/_+/g, '_')
+      .toLowerCase()
+      .replace(/^_|_$/g, '');
+
+    return `${cleanName || 'game'}-save`;
+  }
+
+  /**
+   * Inicializa la instancia de PubNub
    */
   initPubNub() {
-    if (!this.publishKey || !this.subscribeKey || typeof PubNub === 'undefined') {
-      this.pubnub = null;
-      this.updateUIStatus('unconfigured');
-      return false;
-    }
+    const pubKey = (this.publishKey || 'demo').trim();
+    const subKey = (this.subscribeKey || 'demo').trim();
 
     try {
-      this.pubnub = new PubNub({
-        publishKey: this.publishKey.trim(),
-        subscribeKey: this.subscribeKey.trim(),
-        userId: this.userId.trim()
-      });
-
-      console.log('✅ Cliente PubNub inicializado para canal:', this.channel);
+      if (typeof PubNub !== 'undefined') {
+        this.pubnub = new PubNub({
+          publishKey: pubKey,
+          subscribeKey: subKey,
+          userId: this.userId.trim()
+        });
+      }
       this.updateUIStatus('connected');
       return true;
     } catch (err) {
       console.error('Error inicializando PubNub:', err);
-      this.pubnub = null;
       this.updateUIStatus('error');
       return false;
     }
   }
 
   isConfigured() {
-    return Boolean(this.pubnub && this.publishKey && this.subscribeKey);
+    return Boolean(this.publishKey && this.subscribeKey);
   }
 
   /**
-   * Guarda las credenciales de PubNub y reinicia la conexión
+   * Guarda credenciales personalizadas si el usuario las introduce en Ajustes
    */
-  saveCredentials(pubKey, subKey, channel) {
-    this.publishKey = (pubKey || '').trim();
-    this.subscribeKey = (subKey || '').trim();
-    if (channel) this.channel = channel.trim();
+  saveCredentials(pubKey, subKey) {
+    this.publishKey = (pubKey || 'demo').trim();
+    this.subscribeKey = (subKey || 'demo').trim();
 
     localStorage.setItem('pubnub_pub_key', this.publishKey);
     localStorage.setItem('pubnub_sub_key', this.subscribeKey);
-    localStorage.setItem('pubnub_channel', this.channel);
 
     return this.initPubNub();
   }
 
   /**
-   * Prueba la conexión con PubNub publicando un ping de verificación
+   * Prueba la conexión con PubNub
    */
-  async testConnection(pubKey, subKey, channel) {
-    const testPubKey = (pubKey || this.publishKey || '').trim();
-    const testSubKey = (subKey || this.subscribeKey || '').trim();
-    const testChannel = (channel || this.channel || 'soulsilver-cloud-saves').trim();
-
-    if (!testPubKey || !testSubKey) {
-      return { success: false, message: 'Por favor introduce Publish Key y Subscribe Key de PubNub.' };
-    }
-
-    if (typeof PubNub === 'undefined') {
-      return { success: false, message: 'El SDK de PubNub no se ha cargado. Verifica tu conexión a internet.' };
-    }
+  async testConnection(pubKey, subKey) {
+    const testPubKey = (pubKey || this.publishKey || 'demo').trim();
+    const testSubKey = (subKey || this.subscribeKey || 'demo').trim();
+    const testChannel = 'nds_sync_test_ping';
 
     try {
-      const testClient = new PubNub({
-        publishKey: testPubKey,
-        subscribeKey: testSubKey,
-        userId: 'tester_' + Math.random().toString(36).substring(2, 7)
-      });
-
-      // Publicar mensaje de prueba rápido
-      await testClient.publish({
-        channel: testChannel + '_ping',
-        message: { ping: true, time: Date.now() }
-      });
-
-      return { success: true, message: '¡Conexión con PubNub establecida con éxito! ☁️' };
+      const url = `https://ps.pubnub.com/publish/${testPubKey}/${testSubKey}/0/${testChannel}/0/${encodeURIComponent(JSON.stringify({ ping: true, time: Date.now() }))}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        return { success: true, message: '¡Conexión con PubNub establecida con éxito! ☁️' };
+      } else {
+        return { success: false, message: `Error de respuesta PubNub (HTTP ${res.status}).` };
+      }
     } catch (err) {
-      console.error('Error en prueba de conexión PubNub:', err);
-      return { success: false, message: 'Error de autenticación con PubNub: ' + (err.message || 'Verifica las claves.') };
+      return { success: false, message: 'Error conectando con PubNub: ' + err.message };
     }
   }
 
   /**
-   * Descarga la partida (.sav) más reciente desde el canal de PubNub
-   * @param {string} romName Nombre de la ROM activa
+   * Descarga la partida (.sav) más reciente desde el canal único del juego
+   * @param {string} romName Nombre del archivo ROM
    * @returns {Promise<Uint8Array|null>}
    */
   async fetchLatestCloudSave(romName) {
-    if (!this.isConfigured()) {
-      return null;
-    }
-
-    const baseName = (romName || 'Pokemon - Edicion Plata SoulSilver').replace(/\.(nds|zip|7z|sav|dsv)$/i, '').trim();
-    const targetFileName = `${baseName}.sav`;
+    const channel = this.getChannelForRom(romName);
+    this.currentChannel = channel;
+    const subKey = (this.subscribeKey || 'demo').trim();
 
     try {
       this.updateUIStatus('downloading');
-      console.log(`☁️ [PubNub Cloud] Buscando partida en la nube para "${targetFileName}"...`);
+      console.log(`☁️ [PubNub Cloud] Consultando partida en canal: "${channel}"...`);
 
-      // 1. Listar archivos en el canal
-      const listResponse = await this.pubnub.listFiles({
-        channel: this.channel,
-        limit: 20
-      });
+      const historyUrl = `https://ps.pubnub.com/v2/history/sub-key/${subKey}/channel/${channel}?count=100&include_token=true`;
+      const res = await fetch(historyUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      if (!listResponse || !listResponse.data || listResponse.data.length === 0) {
-        console.log('☁️ [PubNub Cloud] No hay archivos en el canal de la nube aún.');
+      const json = await res.json();
+      const messages = (json && json[0]) ? json[0] : [];
+
+      if (!messages || messages.length === 0) {
+        console.log(`☁️ [PubNub Cloud] No hay partida guardada en la nube aún para el canal "${channel}".`);
         this.updateUIStatus('connected');
         return null;
       }
 
-      // 2. Buscar el archivo correspondiente a este juego
-      const matchingFiles = listResponse.data.filter(f => 
-        f.name === targetFileName || f.name === `${baseName}.dsv` || f.name.includes(baseName) || f.name.endsWith('.sav')
-      );
+      // Buscar mensajes de tipo nds_cloud_save
+      const saveMessages = [];
+      for (const item of messages) {
+        const msg = (item && item.message) ? item.message : item;
+        if (msg && msg.type === 'nds_cloud_save' && msg.syncId) {
+          saveMessages.push(msg);
+        }
+      }
 
-      if (matchingFiles.length === 0) {
-        console.log(`☁️ [PubNub Cloud] No se encontró guardado previo para "${baseName}".`);
+      if (saveMessages.length === 0) {
+        console.log(`☁️ [PubNub Cloud] Sin bloques de guardado válidos en "${channel}".`);
         this.updateUIStatus('connected');
         return null;
       }
 
-      // Ordenar por fecha (el más reciente primero)
-      matchingFiles.sort((a, b) => new Date(b.created) - new Date(a.created));
-      const targetFile = matchingFiles[0];
-
-      console.log(`☁️ [PubNub Cloud] Partida encontrada: ${targetFile.name} (ID: ${targetFile.id}, Creada: ${targetFile.created})`);
-
-      // 3. Obtener URL de descarga directa de PubNub Files
-      const urlResponse = await this.pubnub.getFileUrl({
-        channel: this.channel,
-        id: targetFile.id,
-        name: targetFile.name
-      });
-
-      if (!urlResponse || !urlResponse.url) {
-        throw new Error('No se pudo generar la URL de descarga del archivo en PubNub');
+      // Agrupar por syncId para obtener la versión más reciente
+      const syncGroups = {};
+      for (const msg of saveMessages) {
+        if (!syncGroups[msg.syncId]) {
+          syncGroups[msg.syncId] = {
+            timestamp: msg.timestamp || 0,
+            totalChunks: msg.totalChunks || 1,
+            chunks: {}
+          };
+        }
+        syncGroups[msg.syncId].chunks[msg.chunkIndex] = msg.data;
       }
 
-      // 4. Descargar los bytes binarios
-      const res = await fetch(urlResponse.url);
-      if (!res.ok) throw new Error(`HTTP Error ${res.status} al descargar de PubNub`);
-      const buffer = await res.arrayBuffer();
+      // Ordenar syncIds por timestamp descendente
+      const sortedSyncIds = Object.keys(syncGroups).sort((a, b) => syncGroups[b].timestamp - syncGroups[a].timestamp);
+      const latestSyncId = sortedSyncIds[0];
+      const latestGroup = syncGroups[latestSyncId];
 
-      if (buffer && buffer.byteLength > 0) {
-        console.log(`☁️ [PubNub Cloud] ✅ Partida descargada con éxito (${buffer.byteLength} bytes)`);
+      // Reconstruir los chunks en orden
+      let fullBase64 = '';
+      for (let i = 0; i < latestGroup.totalChunks; i++) {
+        if (latestGroup.chunks[i] === undefined) {
+          console.warn(`☁️ [PubNub Cloud] Falta el bloque ${i} de la versión ${latestSyncId}`);
+          return null;
+        }
+        fullBase64 += latestGroup.chunks[i];
+      }
+
+      const uint8 = this.base64ToUint8(fullBase64);
+      if (uint8 && uint8.byteLength > 0) {
+        console.log(`☁️ [PubNub Cloud] ✅ Partida "${channel}" descargada con éxito (${uint8.byteLength} bytes).`);
         this.updateUIStatus('connected');
-        return new Uint8Array(buffer);
+        return uint8;
       }
     } catch (err) {
-      console.warn('☁️ [PubNub Cloud] Error descargando partida de la nube:', err);
+      console.warn(`☁️ [PubNub Cloud] Error descargando partida de "${channel}":`, err);
       this.updateUIStatus('error');
     }
 
@@ -178,64 +186,76 @@ class CloudSaveManager {
   }
 
   /**
-   * Sube y sobreescribe el archivo .sav en la nube de PubNub
-   * @param {Uint8Array|ArrayBuffer|Blob} saveData Datos binarios del .sav
+   * Sube y sobreescribe la partida (.sav) en el canal único del juego
+   * @param {Uint8Array|ArrayBuffer|Blob} saveData Datos binarios del archivo .sav
    * @param {string} romName Nombre de la ROM
    */
   async uploadCloudSave(saveData, romName) {
-    if (!this.isConfigured() || !saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) {
+    if (!saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) {
       return false;
     }
 
-    // Cooldown para no saturar la API de PubNub
     const now = Date.now();
-    if (this.isUploading || (now - this.lastUploadTime < 3500)) {
+    if (this.isUploading || (now - this.lastUploadTime < 3000)) {
       return false;
     }
 
-    const baseName = (romName || 'Pokemon - Edicion Plata SoulSilver').replace(/\.(nds|zip|7z|sav|dsv)$/i, '').trim();
-    const filename = `${baseName}.sav`;
-    const uint8 = saveData instanceof Uint8Array ? saveData : (saveData instanceof ArrayBuffer ? new Uint8Array(saveData) : null);
-    const blob = saveData instanceof Blob ? saveData : new Blob([uint8 || saveData], { type: 'application/octet-stream' });
+    const channel = this.getChannelForRom(romName);
+    this.currentChannel = channel;
+    const pubKey = (this.publishKey || 'demo').trim();
+    const subKey = (this.subscribeKey || 'demo').trim();
+
+    let uint8Data = saveData;
+    if (saveData instanceof Blob) {
+      uint8Data = new Uint8Array(await saveData.arrayBuffer());
+    } else if (saveData instanceof ArrayBuffer) {
+      uint8Data = new Uint8Array(saveData);
+    }
 
     this.isUploading = true;
     this.lastUploadTime = now;
     this.updateUIStatus('uploading');
 
     try {
-      console.log(`☁️ [PubNub Cloud] Subiendo y sobreescribiendo "${filename}" (${blob.size} bytes)...`);
+      const base64Data = this.uint8ToBase64(uint8Data);
+      const chunkSize = 24000; // ~24KB por bloque para cumplir con el límite de PubNub
+      const totalChunks = Math.ceil(base64Data.length / chunkSize);
+      const syncId = 'save_' + now + '_' + Math.random().toString(36).substring(2, 6);
 
-      // 1. Subir archivo binario a PubNub Files API
-      const uploadResult = await this.pubnub.sendFile({
-        channel: this.channel,
-        message: {
-          type: 'cloud_save_update',
-          rom: baseName,
-          filename: filename,
-          size: blob.size,
-          updatedAt: new Date().toISOString()
-        },
-        file: {
-          data: blob,
-          name: filename,
-          mimeType: 'application/octet-stream'
-        }
-      });
+      console.log(`☁️ [PubNub Cloud] Subiendo "${channel}" (${uint8Data.byteLength} bytes en ${totalChunks} bloques)...`);
 
-      console.log('☁️ [PubNub Cloud] ✅ Subida completada:', uploadResult);
+      // Publicar todos los bloques en paralelo
+      const publishPromises = [];
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = base64Data.substring(i * chunkSize, (i + 1) * chunkSize);
+        const payload = {
+          type: 'nds_cloud_save',
+          rom: channel,
+          syncId: syncId,
+          timestamp: now,
+          chunkIndex: i,
+          totalChunks: totalChunks,
+          data: chunk
+        };
+
+        const encoded = encodeURIComponent(JSON.stringify(payload));
+        const pubUrl = `https://ps.pubnub.com/publish/${pubKey}/${subKey}/0/${channel}/0/${encoded}`;
+        publishPromises.push(fetch(pubUrl));
+      }
+
+      await Promise.all(publishPromises);
+
+      console.log(`☁️ [PubNub Cloud] ✅ Partida subida a "${channel}" con éxito.`);
       this.updateUIStatus('connected');
 
       if (window.saveManager) {
-        window.saveManager.showToast(`☁️ Partida guardada en la Nube (PubNub)`, 'success');
+        window.saveManager.showToast(`☁️ Partida guardada en la Nube (${channel})`, 'success');
       }
-
-      // 2. Limpieza de versiones obsoletas en segundo plano
-      this.cleanOldFiles(baseName, uploadResult?.data?.id);
 
       this.isUploading = false;
       return true;
     } catch (err) {
-      console.error('☁️ [PubNub Cloud] Error subiendo archivo a PubNub:', err);
+      console.error(`☁️ [PubNub Cloud] Error subiendo a "${channel}":`, err);
       this.updateUIStatus('error');
       this.isUploading = false;
       return false;
@@ -243,32 +263,33 @@ class CloudSaveManager {
   }
 
   /**
-   * Elimina archivos antiguos del mismo juego en el canal para mantener limpia la nube
+   * Conversión rápida de Uint8Array a Base64 segura para memoria
    */
-  async cleanOldFiles(baseName, keepFileId) {
-    if (!this.pubnub) return;
-    try {
-      const list = await this.pubnub.listFiles({ channel: this.channel, limit: 30 });
-      if (!list || !list.data) return;
-
-      const targetFileName = `${baseName}.sav`;
-      const oldFiles = list.data.filter(f => f.name === targetFileName && f.id !== keepFileId);
-
-      for (const old of oldFiles) {
-        try {
-          await this.pubnub.deleteFile({
-            channel: this.channel,
-            id: old.id,
-            name: old.name
-          });
-          console.log(`☁️ [PubNub Cloud] Versión antigua eliminada: ${old.id}`);
-        } catch (e) {}
-      }
-    } catch (e) {}
+  uint8ToBase64(bytes) {
+    let binary = '';
+    const len = bytes.byteLength;
+    const chunkSize = 0x8000;
+    for (let i = 0; i < len; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunkSize, len)));
+    }
+    return btoa(binary);
   }
 
   /**
-   * Actualiza los indicadores visuales de estado de la nube en la barra superior
+   * Conversión rápida de Base64 a Uint8Array
+   */
+  base64ToUint8(base64) {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  }
+
+  /**
+   * Actualiza el indicador visual de estado en la cabecera
    */
   updateUIStatus(status) {
     const statusItem = document.getElementById('cloud-status');
@@ -278,11 +299,13 @@ class CloudSaveManager {
 
     statusItem.className = 'status-item';
 
+    const channelName = this.currentChannel || 'soulsilver-save';
+
     switch (status) {
       case 'connected':
         statusItem.classList.add('active');
-        label.textContent = `Nube: Conectada (${this.channel})`;
-        statusItem.setAttribute('title', `Sincronización en la nube con PubNub activa en canal "${this.channel}"`);
+        label.textContent = `Nube: Conectada (${channelName})`;
+        statusItem.setAttribute('title', `Sincronización activa en canal "${channelName}"`);
         break;
       case 'uploading':
         statusItem.classList.add('active');
@@ -292,13 +315,12 @@ class CloudSaveManager {
         statusItem.classList.add('active');
         label.textContent = 'Nube: Descargando... ☁️';
         break;
-      case 'unconfigured':
-        label.textContent = 'Nube: Sin configurar';
-        statusItem.setAttribute('title', 'Configura tus claves de PubNub en Ajustes para sincronización en la nube');
-        break;
       case 'error':
         statusItem.classList.add('error');
-        label.textContent = 'Nube: Error conexión';
+        label.textContent = 'Nube: Error de conexión';
+        break;
+      default:
+        label.textContent = 'Nube: Conectada';
         break;
     }
   }
@@ -306,3 +328,4 @@ class CloudSaveManager {
 
 // Instancia global
 window.cloudSaveManager = new CloudSaveManager();
+

@@ -14,8 +14,8 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e60012'/><rect x='15' y='18' width='70' height='30' rx='5' fill='%23111'/><rect x='15' y='52' width='70' height='30' rx='5' fill='%23111'/><circle cx='30' cy='33' r='4' fill='%2300f0ff'/><circle cx='70' cy='67' r='4' fill='%23ff0055'/></svg>">
 
   <!-- Estilos con cache-busting -->
-  <link rel="stylesheet" href="css/style.css?v=0.3.14">
-  <link rel="stylesheet" href="css/touch-controls.css?v=0.3.14">
+  <link rel="stylesheet" href="css/style.css?v=0.3.16">
+  <link rel="stylesheet" href="css/touch-controls.css?v=0.3.16">
 
   <!-- Escudo indestructible contra controles virtuales, barra inferior, menús contextuales y capturas de EmulatorJS -->
   <style id="ejs-override-shield">
@@ -70,7 +70,7 @@
         <div class="logo-badge">NDS</div>
         <div class="title-group">
           <h1>NDS Web Emulator</h1>
-          <span class="version-badge" id="app-version">v0.3.14</span>
+          <span class="version-badge" id="app-version">v0.3.16</span>
         </div>
       </div>
 
@@ -359,25 +359,30 @@
 
           <div class="settings-section">
             <h4>☁️ Sincronización en la Nube con PubNub</h4>
-            <p class="settings-desc">Tus partidas se descargarán automáticamente al abrir el juego y se sobreescribirán en la nube al guardar:</p>
+            <p class="settings-desc">Preconfigurado automáticamente. Cada juego tiene su propio canal aislado (<code>nombre_del_juego-save</code>) para que múltiples juegos no se pisen:</p>
             <div style="display: flex; flex-direction: column; gap: 10px;">
               <div>
-                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Publish Key (pub-c-...):</label>
-                <input type="text" id="pubnub-pub-input" class="form-select" placeholder="pub-c-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family: monospace; font-size: 11px;">
-              </div>
-              <div>
-                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Subscribe Key (sub-c-...):</label>
-                <input type="text" id="pubnub-sub-input" class="form-select" placeholder="sub-c-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family: monospace; font-size: 11px;">
-              </div>
-              <div>
-                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Canal de Partida / ID de Nube:</label>
-                <input type="text" id="pubnub-channel-input" class="form-select" placeholder="soulsilver-cloud-saves" value="soulsilver-cloud-saves" style="font-family: monospace; font-size: 11px;">
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Canal del Juego Actual:</label>
+                <input type="text" id="pubnub-channel-display" class="form-select" value="pokemon_edicion_plata_soulsilver-save" readonly style="font-family: monospace; font-size: 11px; opacity: 0.85; background: rgba(0,0,0,0.3);">
               </div>
               <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap;">
-                <button class="btn btn-secondary btn-sm" id="btn-save-pubnub-config">💾 Guardar y Conectar</button>
-                <button class="btn btn-secondary btn-sm" id="btn-test-pubnub">🔗 Probar Conexión</button>
+                <button class="btn btn-secondary btn-sm" id="btn-test-pubnub">🔗 Probar Conexión Nube</button>
                 <span id="pubnub-test-result" style="font-size: 11px; font-weight: 600;"></span>
               </div>
+              <details style="margin-top: 6px;">
+                <summary style="font-size: 11px; color: var(--text-muted); cursor: pointer;">⚙️ Claves PubNub Personalizadas (Opcional)</summary>
+                <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                  <div>
+                    <label style="font-size: 10px; color: var(--text-muted); display: block;">Publish Key:</label>
+                    <input type="text" id="pubnub-pub-input" class="form-select" placeholder="demo" style="font-family: monospace; font-size: 11px;">
+                  </div>
+                  <div>
+                    <label style="font-size: 10px; color: var(--text-muted); display: block;">Subscribe Key:</label>
+                    <input type="text" id="pubnub-sub-input" class="form-select" placeholder="demo" style="font-family: monospace; font-size: 11px;">
+                  </div>
+                  <button class="btn btn-secondary btn-sm" id="btn-save-pubnub-config" style="align-self: flex-start;">Guardar Claves</button>
+                </div>
+              </details>
             </div>
           </div>
 
@@ -438,11 +443,11 @@
   <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.4.3.min.js"></script>
 
   <!-- Scripts del Emulador con cache-busting -->
-  <script src="js/cloud-save-manager.js?v=0.3.15"></script>
-  <script src="js/save-manager.js?v=0.3.15"></script>
-  <script src="js/gamepad.js?v=0.3.15"></script>
-  <script src="js/touch-controls.js?v=0.3.15"></script>
-  <script src="js/app.js?v=0.3.15"></script>
+  <script src="js/cloud-save-manager.js?v=0.3.16"></script>
+  <script src="js/save-manager.js?v=0.3.16"></script>
+  <script src="js/gamepad.js?v=0.3.16"></script>
+  <script src="js/touch-controls.js?v=0.3.16"></script>
+  <script src="js/app.js?v=0.3.16"></script>
 </body>
 </html>
 
