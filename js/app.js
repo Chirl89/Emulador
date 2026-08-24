@@ -649,12 +649,19 @@ class NDSEmulatorApp {
     window.EJS_disableMenu = true;
     window.EJS_VirtualGamepadSettings = { disabled: true };
 
+    // Mostrar overlay de carga oscuro con spinner neon
+    const loadingOverlay = document.getElementById('emulator-loading-overlay');
+    const loadingStatus = document.getElementById('emulator-loading-status');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+    if (loadingStatus) loadingStatus.textContent = `Cargando ${this.currentRomName || 'Nintendo DS'}...`;
+
     // Configuración global para EmulatorJS
     window.EJS_player = '#game-player';
     window.EJS_core = this.selectedCore; // 'desmume' o 'melonds'
     window.EJS_gameUrl = romUrl;
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoaded = true;
+    window.EJS_backgroundColor = '#000000';
     
     // Opciones de alto rendimiento adaptadas para fluidez a 60 FPS en Opera y Safari
     window.EJS_defaultOptions = {
@@ -707,6 +714,12 @@ class NDSEmulatorApp {
     };
 
     window.EJS_onGameStart = async () => {
+      // 0. Ocultar overlay de carga con fade out suave
+      const overlay = document.getElementById('emulator-loading-overlay');
+      if (overlay) {
+        setTimeout(() => overlay.classList.add('hidden'), 200);
+      }
+
       // 1. Remover cualquier botón, menú o gamepad residual del motor
       const duplicates = document.querySelectorAll('.ejs_virtualGamepad, .ejs_virtualGamepad_open, .ejs_dpad_main, .ejs_menu_bar, .ejs_menu_button, .ejs_menu, [class*="ejs_virtualGamepad"], [class*="ejs_menu"]');
       duplicates.forEach(el => el.remove());

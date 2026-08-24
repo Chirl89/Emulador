@@ -429,22 +429,83 @@ html, body {
   align-items: center;
   justify-content: center;
   position: relative;
-  background: #000;
+  background: #000000 !important;
   overflow: hidden;
+}
+
+/* Overlay de carga elegante para evitar pantallas grises/blancas */
+.emulator-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000000 !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+  pointer-events: none;
+}
+
+.emulator-loading-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.spinner-neon {
+  width: 44px;
+  height: 44px;
+  border: 4px solid rgba(0, 240, 255, 0.15);
+  border-top-color: #00f0ff;
+  border-radius: 50%;
+  animation: spinLoader 0.8s linear infinite;
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+  margin-bottom: 14px;
+}
+
+.loading-status-text {
+  color: #00f0ff;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+  margin: 0;
+}
+
+@keyframes spinLoader {
+  to { transform: rotate(360deg); }
 }
 
 .game-player,
 #game-player,
 .game-player .ejs_game,
-.game-player .ejs_parent {
+.game-player .ejs_parent,
+.ejs_canvas_parent,
+.ejs_canvas,
+canvas {
   width: 100% !important;
   height: 100% !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   position: relative !important;
-  background: #000 !important;
+  background: #000000 !important;
+  background-color: #000000 !important;
   overflow: hidden !important;
+}
+
+/* Ocultar texto undefined y botones de inicio nativos de EmulatorJS */
+.ejs_loading_text,
+.ejs_start_button,
+.ejs_start_button_border,
+.ejs_loading_text_glow {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  height: 0 !important;
 }
 
 /* Ocultar completamente cualquier menú modal, barra de trucos, red o ventana emergente interna de EmulatorJS */
