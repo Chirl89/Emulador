@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM y control de interfaz
- * Versión: v0.1.7
+ * Versión: v0.1.8
  */
 
 class NDSEmulatorApp {
@@ -230,6 +230,8 @@ class NDSEmulatorApp {
     };
 
     const handleKey = (e, isDown) => {
+      // Evitar recursión infinita ignorando eventos sintetizados
+      if (!e.isTrusted) return;
       // Ignorar si el usuario está interactuando con inputs de formularios o modales
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
       if (!this.isEmulating) return;
@@ -535,7 +537,7 @@ class NDSEmulatorApp {
           if ('caches' in window) {
             caches.keys().then((keys) => {
               keys.forEach((key) => {
-                if (key !== 'nds-emulator-v0.1.6') {
+                if (key !== 'nds-emulator-v0.1.8') {
                   console.log('Purgando caché obsoleta:', key);
                   caches.delete(key);
                 }
@@ -544,7 +546,7 @@ class NDSEmulatorApp {
           }
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.1.6').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.1.8').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

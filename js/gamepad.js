@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Gamepad Manager
  * Soporte especializado para Asus ROG Ally (Mando integrado XInput) y mandos estándar
- * Versión: v0.1.7
+ * Versión: v0.1.8
  */
 
 class GamepadController {
@@ -195,30 +195,36 @@ class GamepadController {
    * Dispara entrada directa al emulador (simulateInput C-WASM) y teclado de respaldo
    */
   dispatchKey(inputName, isDown) {
-    // 1. Método directo WASM C-API (Inmune a problemas de foco e iframes)
-    const buttonId = this.retroArchButtonMap[inputName];
+    if (!inputName) return;
+    const name = inputName.toLowerCase();
+
+    // 1. Inyección directa a nivel WebAssembly C-API (0ms lag, inmune a foco e iframes)
+    const buttonId = this.retroArchButtonMap[name];
     if (buttonId !== undefined && window.EJS_emulator && window.EJS_emulator.gameManager) {
       const gm = window.EJS_emulator.gameManager;
       if (typeof gm.simulateInput === 'function') {
         try {
           gm.simulateInput(0, buttonId, isDown ? 1 : 0);
+          return; // Entrada consumida con éxito por el núcleo WASM
         } catch (e) {}
-      } else if (gm.functions && typeof gm.functions.simulateInput === 'function') {
+      }
+      if (gm.functions && typeof gm.functions.simulateInput === 'function') {
         try {
           gm.functions.simulateInput(0, buttonId, isDown ? 1 : 0);
+          return; // Entrada consumida con éxito por el núcleo WASM
         } catch (e) {}
       }
     }
 
-    // 2. Método DOM / KeyboardEvent como respaldo
-    const def = this.inputDefinitions[inputName];
+    // 2. Método DOM de respaldo exclusivamente en el contenedor padre de EmulatorJS
+    const def = this.inputDefinitions[name];
     if (!def) return;
 
     const eventType = isDown ? 'keydown' : 'keyup';
     const event = new KeyboardEvent(eventType, {
       key: def.key,
       code: def.code,
-      bubbles: true,
+      bubbles: false, // NO propagar a window/document para evitar bucles de eventos
       cancelable: true,
       view: window
     });
@@ -229,34 +235,12 @@ class GamepadController {
       Object.defineProperty(event, 'charCode', { get: () => (isDown ? def.keyCode : 0) });
     } catch (e) {}
 
-    // Despachar en el contenedor padre de EmulatorJS
     const parentElem = (window.EJS_emulator && window.EJS_emulator.elements && window.EJS_emulator.elements.parent)
-      || document.querySelector('#game-player')
-      || document.querySelector('.ejs_parent');
+      || document.querySelector('#game-player');
 
     if (parentElem) {
-      parentElem.dispatchEvent(event);
-    }
-
-    // Despachar a nivel de ventana y documento
-    window.dispatchEvent(event);
-    document.dispatchEvent(event);
-    if (document.body) document.body.dispatchEvent(event);
-
-    // Despachar en el canvas activo de emulación
-    const canvas = document.querySelector('#game-player canvas') || document.querySelector('canvas');
-    if (canvas) {
-      canvas.dispatchEvent(event);
-    }
-
-    // Despachar en iframe si EmulatorJS está encapsulado
-    const iframe = document.querySelector('#game-player iframe');
-    if (iframe && iframe.contentWindow) {
       try {
-        iframe.contentWindow.dispatchEvent(event);
-        if (iframe.contentDocument) {
-          iframe.contentDocument.dispatchEvent(event);
-        }
+        parentElem.dispatchEvent(event);
       } catch (e) {}
     }
   }
