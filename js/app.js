@@ -676,6 +676,11 @@ class NDSEmulatorApp {
     window.EJS_disableMenu = true;
     window.EJS_VirtualGamepadSettings = { disabled: true };
 
+    // Optimización de arranque inmediato (Evita el bloqueo de 15s de IndexedDB en Safari iOS)
+    window.EJS_cacheLimit = 0;
+    window.EJS_disableDatabases = true;
+    window.EJS_threads = true;
+
     // Configuración global para EmulatorJS
     window.EJS_player = '#game-player';
     window.EJS_core = this.selectedCore; // 'desmume' o 'melonds'
@@ -683,7 +688,7 @@ class NDSEmulatorApp {
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoaded = true;
     
-    // Opciones del núcleo WebAssembly adaptadas a la resolución y orientación del dispositivo
+    // Opciones de alto rendimiento adaptadas para fluidez a 60 FPS en Opera y Safari
     window.EJS_defaultOptions = {
       "desmume_screens_layout": isVertical ? "top/bottom" : "left/right",
       "desmume_pointer_type": "touch",
@@ -693,18 +698,31 @@ class NDSEmulatorApp {
       "desmume_touch_mode": "touch",
       "desmume_pointer_mode": "relative",
       "desmume_pointer_colour": "white",
+      "desmume_advanced_timing": "disabled", // Desactiva timing innecesario para duplicar FPS
+      "desmume_internal_resolution": "256x192", // Resolución nativa óptima
+      "desmume_opengl_mode": "disabled", // Modo softraster optimizado
+      "desmume_spu_interpolation": "linear",
+      "desmume_cpu_mode": "jit",
+      "desmume_frameskip": "0",
       "melonds_touch_mode": "touch",
       "melonds_screen_layout": isVertical ? "Top/Bottom" : "Horizontal",
-      "melonds_screens_layout": isVertical ? "top/bottom" : "left/right"
+      "melonds_screens_layout": isVertical ? "top/bottom" : "left/right",
+      "melonds_threaded_renderer": "enabled",
+      "melonds_jit_enable": "enabled",
+      "melonds_audio_interpolation": "none"
     };
 
     // Desactivar gamepad virtual duplicado interno de EmulatorJS
     window.EJS_VirtualGamepadSettings = { disabled: true };
     
-    // Opciones adicionales para Handheld / ROG Ally
+    // Opciones de buffer de audio y multihilo para eliminar tartamudeo en Opera y PC
     window.EJS_Settings = {
       default_controls: true,
-      volume: 1.0
+      volume: 1.0,
+      audio_latency: 128,
+      video_vsync: true,
+      video_smooth: false,
+      video_threaded: true
     };
 
     // Callback cuando el juego guarda internamente en su menú

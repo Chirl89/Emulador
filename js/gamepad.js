@@ -202,47 +202,68 @@ class GamepadController {
     const buttonId = this.retroArchButtonMap[name];
     if (buttonId !== undefined && window.EJS_emulator && window.EJS_emulator.gameManager) {
       const gm = window.EJS_emulator.gameManager;
-      if (typeof gm.simulateInput === 'function') {
+      const sim = (typeof gm.simulateInput === 'function') ? gm.simulateInput.bind(gm) : (gm.functions?.simulateInput ? gm.functions.simulateInput.bind(gm) : null);
+      if (sim) {
         try {
-          gm.simulateInput(0, buttonId, isDown ? 1 : 0);
-          return; // Entrada consumida con éxito por el núcleo WASM
-        } catch (e) {}
-      }
-      if (gm.functions && typeof gm.functions.simulateInput === 'function') {
-        try {
-          gm.functions.simulateInput(0, buttonId, isDown ? 1 : 0);
-          return; // Entrada consumida con éxito por el núcleo WASM
+          sim(0, buttonId, isDown ? 1 : 0);
+          // Si es L o R, disparar tanto L1 (10)/R1 (11) como L2 (12)/R2 (13) para compatibilidad total con núcleos
+          if (name === 'l') {
+            sim(0, 10, isDown ? 1 : 0);
+            sim(0, 12, isDown ? 1 : 0);
+          }
+          if (name === 'r') {
+            sim(0, 11, isDown ? 1 : 0);
+            sim(0, 13, isDown ? 1 : 0);
+          }
         } catch (e) {}
       }
     }
 
-    // 2. Método DOM de respaldo exclusivamente en el contenedor padre de EmulatorJS
+    // 2. Método DOM de respaldo (KeyboardEvent a contenedor y canvas)
     const def = this.inputDefinitions[name];
     if (!def) return;
 
     const eventType = isDown ? 'keydown' : 'keyup';
-    const event = new KeyboardEvent(eventType, {
-      key: def.key,
-      code: def.code,
-      bubbles: false, // NO propagar a window/document para evitar bucles de eventos
-      cancelable: true,
-      view: window
-    });
+    const keysToSend = [def];
 
-    try {
-      Object.defineProperty(event, 'keyCode', { get: () => def.keyCode });
-      Object.defineProperty(event, 'which', { get: () => def.keyCode });
-      Object.defineProperty(event, 'charCode', { get: () => (isDown ? def.keyCode : 0) });
-    } catch (e) {}
-
-    const parentElem = (window.EJS_emulator && window.EJS_emulator.elements && window.EJS_emulator.elements.parent)
-      || document.querySelector('#game-player');
-
-    if (parentElem) {
-      try {
-        parentElem.dispatchEvent(event);
-      } catch (e) {}
+    // Enviar teclas alternativas para L y R (Q / L y E / R)
+    if (name === 'l') {
+      keysToSend.push({ key: 'l', code: 'KeyL', keyCode: 76 });
+      keysToSend.push({ key: 'w', code: 'KeyW', keyCode: 87 });
     }
+    if (name === 'r') {
+      keysToSend.push({ key: 'r', code: 'KeyR', keyCode: 82 });
+      keysToSend.push({ key: 'e', code: 'KeyE', keyCode: 69 });
+    }
+
+    keysToSend.forEach(kDef => {
+      const event = new KeyboardEvent(eventType, {
+        key: kDef.key,
+        code: kDef.code,
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+
+      try {
+        Object.defineProperty(event, 'keyCode', { get: () => kDef.keyCode });
+        Object.defineProperty(event, 'which', { get: () => kDef.keyCode });
+        Object.defineProperty(event, 'charCode', { get: () => (isDown ? kDef.keyCode : 0) });
+      } catch (e) {}
+
+      const targets = [
+        document.querySelector('#game-player canvas'),
+        (window.EJS_emulator && window.EJS_emulator.elements && window.EJS_emulator.elements.parent),
+        document.querySelector('#game-player'),
+        window
+      ];
+
+      targets.forEach(t => {
+        if (t && typeof t.dispatchEvent === 'function') {
+          try { t.dispatchEvent(event); } catch (e) {}
+        }
+      });
+    });
   }
 
   releaseAllInputs() {
