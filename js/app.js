@@ -405,10 +405,66 @@ class NDSEmulatorApp {
       });
     }
 
+    // Configuración de PubNub Cloud Saves en el Modal de Ajustes
+    const pubKeyInput = document.getElementById('pubnub-pub-input');
+    const subKeyInput = document.getElementById('pubnub-sub-input');
+    const channelInput = document.getElementById('pubnub-channel-input');
+    const savePubNubBtn = document.getElementById('btn-save-pubnub-config');
+    const testPubNubBtn = document.getElementById('btn-test-pubnub');
+    const pubNubResult = document.getElementById('pubnub-test-result');
+
+    const syncPubNubInputs = () => {
+      if (window.cloudSaveManager) {
+        if (pubKeyInput) pubKeyInput.value = window.cloudSaveManager.publishKey || '';
+        if (subKeyInput) subKeyInput.value = window.cloudSaveManager.subscribeKey || '';
+        if (channelInput) channelInput.value = window.cloudSaveManager.channel || 'soulsilver-cloud-saves';
+      }
+    };
+    syncPubNubInputs();
+
+    if (savePubNubBtn) {
+      savePubNubBtn.addEventListener('click', () => {
+        if (window.cloudSaveManager) {
+          const ok = window.cloudSaveManager.saveCredentials(
+            pubKeyInput?.value,
+            subKeyInput?.value,
+            channelInput?.value
+          );
+          if (pubNubResult) {
+            pubNubResult.textContent = ok ? '✅ Conectado a PubNub' : '⚠️ Claves incompletas';
+            pubNubResult.style.color = ok ? 'var(--color-success)' : 'var(--color-warning)';
+          }
+          window.saveManager?.showToast(ok ? '☁️ PubNub configurado con éxito' : '⚠️ Introduce Publish y Subscribe Key', ok ? 'success' : 'warning');
+        }
+      });
+    }
+
+    if (testPubNubBtn) {
+      testPubNubBtn.addEventListener('click', async () => {
+        if (pubNubResult) {
+          pubNubResult.textContent = '🔄 Probando conexión...';
+          pubNubResult.style.color = 'var(--color-primary)';
+        }
+        if (window.cloudSaveManager) {
+          const res = await window.cloudSaveManager.testConnection(
+            pubKeyInput?.value,
+            subKeyInput?.value,
+            channelInput?.value
+          );
+          if (pubNubResult) {
+            pubNubResult.textContent = res.success ? '✅ Conexión exitosa' : '❌ Error';
+            pubNubResult.style.color = res.success ? 'var(--color-success)' : 'var(--color-error)';
+          }
+          window.saveManager?.showToast(res.message, res.success ? 'success' : 'error');
+        }
+      });
+    }
+
     if (settingsBtn) settingsBtn.addEventListener('click', () => {
       if (saveModeSelector && window.saveManager) {
         saveModeSelector.value = window.saveManager.saveMode;
       }
+      syncPubNubInputs();
       this.toggleSettings(true);
     });
     if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', () => this.toggleSettings(false));

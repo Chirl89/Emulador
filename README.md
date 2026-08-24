@@ -1,14 +1,25 @@
 # 🎮 NDS Web Emulator (ROG Ally & Safari Edition)
 
-[![Version](https://img.shields.io/badge/version-v0.3.14-00f0ff.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-v0.3.15-00f0ff.svg)](./VERSION)
 [![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS%20|%20Opera%20GX-ff0055.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssembly (DeSmuME / melonDS core), optimizado específicamente para:
 1. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
 2. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
-3. **Safari en iOS / iPadOS / macOS**: PWA instalable con controles virtuales en pantalla, respuesta háptica, persistencia en IndexedDB, menú emergente de confirmación y exportación de partidas `.sav` a la app **Archivos**.
-4. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en segundo plano.
+3. **Safari en iOS / iPadOS / macOS**: PWA instalable con controles virtuales en pantalla, respuesta háptica y compatibilidad total.
+4. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
+5. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
+
+---
+
+## ☁️ Configuración de Guardado en la Nube (PubNub)
+
+1. Abre el emulador y pulsa en **⚙️ Ajustes**.
+2. En la sección **"☁️ Sincronización en la Nube con PubNub"**, introduce tu **Publish Key** (`pub-c-...`) y **Subscribe Key** (`sub-c-...`).
+3. Elige tu canal/ID de partida (por defecto: `soulsilver-cloud-saves`).
+4. Pulsa **"💾 Guardar y Conectar"** o **"🔗 Probar Conexión"**.
+5. ¡Listo! Ahora tu partida se sincronizará sola entre tu iPhone, PC y ROG Ally en tiempo real.
 
 ---
 

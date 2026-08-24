@@ -275,13 +275,17 @@ class SaveManager {
         if (!isAutoSave) {
           this.showToast(`💾 Partida sobreescrita en disco: ${filename}`, 'success');
         }
-        return true;
       } catch (err) {
         console.error('Error escribiendo en carpeta vinculada:', err);
       }
     }
 
-    // 4. Gestión según el modo de guardado configurado (iOS / Navegador web)
+    // 4. Si la sincronización en la Nube con PubNub está configurada, subir y sobreescribir en la nube
+    if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
+      window.cloudSaveManager.uploadCloudSave(uint8Data || saveData, this.currentRomName);
+    }
+
+    // 5. Gestión según el modo de guardado configurado (iOS / Navegador web)
     if (forceDownload) {
       this.generateSavFileDownload(saveData, filename);
     } else if (!isAutoSave) {
@@ -402,6 +406,22 @@ class SaveManager {
       `game.sav`,
       `game.dsv`
     ];
+
+    // 0. Comprobar primero en la Nube de PubNub (Cross-device Sync)
+    if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
+      try {
+        const cloudSaveData = await window.cloudSaveManager.fetchLatestCloudSave(romName);
+        if (cloudSaveData && cloudSaveData.byteLength > 0) {
+          console.log(`☁️ Partida previa recuperada de la nube de PubNub (${cloudSaveData.byteLength} bytes)`);
+          await this.saveToIndexedDB(`${baseName}.sav`, cloudSaveData);
+          await this.saveToIndexedDB('game.sav', cloudSaveData);
+          this.showToast(`☁️ Partida descargada de la Nube (PubNub)`, 'success');
+          return cloudSaveData;
+        }
+      } catch (e) {
+        console.warn('Error comprobando partida en PubNub Cloud:', e);
+      }
+    }
 
     // 1. Comprobar en disco si hay carpeta vinculada
     if (this.directoryHandle) {

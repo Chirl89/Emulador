@@ -91,6 +91,11 @@
           <span class="label" id="save-folder-label">SoulSilver: Sin vincular</span>
         </div>
 
+        <div class="status-item" id="cloud-status" title="Sincronización en la Nube con PubNub">
+          <span class="icon">☁️</span>
+          <span class="label" id="cloud-status-label">Nube: Sin configurar</span>
+        </div>
+
         <div class="status-item" id="audio-status" title="Estado de Audio">
           <span class="icon">🔊</span>
           <span class="label">Audio OK</span>
@@ -353,6 +358,30 @@
           </div>
 
           <div class="settings-section">
+            <h4>☁️ Sincronización en la Nube con PubNub</h4>
+            <p class="settings-desc">Tus partidas se descargarán automáticamente al abrir el juego y se sobreescribirán en la nube al guardar:</p>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div>
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Publish Key (pub-c-...):</label>
+                <input type="text" id="pubnub-pub-input" class="form-select" placeholder="pub-c-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family: monospace; font-size: 11px;">
+              </div>
+              <div>
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Subscribe Key (sub-c-...):</label>
+                <input type="text" id="pubnub-sub-input" class="form-select" placeholder="sub-c-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family: monospace; font-size: 11px;">
+              </div>
+              <div>
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Canal de Partida / ID de Nube:</label>
+                <input type="text" id="pubnub-channel-input" class="form-select" placeholder="soulsilver-cloud-saves" value="soulsilver-cloud-saves" style="font-family: monospace; font-size: 11px;">
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap;">
+                <button class="btn btn-secondary btn-sm" id="btn-save-pubnub-config">💾 Guardar y Conectar</button>
+                <button class="btn btn-secondary btn-sm" id="btn-test-pubnub">🔗 Probar Conexión</button>
+                <span id="pubnub-test-result" style="font-size: 11px; font-weight: 600;"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section">
             <h4>⚡ Rendimiento y Núcleo de Emulación</h4>
             <div class="select-group">
               <label for="core-selector">Núcleo WebAssembly:</label>
@@ -405,11 +434,15 @@
     <div id="toast-container" class="toast-container"></div>
   </div>
 
+  <!-- SDK de PubNub para Cloud Saves -->
+  <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.4.3.min.js"></script>
+
   <!-- Scripts del Emulador con cache-busting -->
-  <script src="js/save-manager.js?v=0.3.14"></script>
-  <script src="js/gamepad.js?v=0.3.14"></script>
-  <script src="js/touch-controls.js?v=0.3.14"></script>
-  <script src="js/app.js?v=0.3.14"></script>
+  <script src="js/cloud-save-manager.js?v=0.3.15"></script>
+  <script src="js/save-manager.js?v=0.3.15"></script>
+  <script src="js/gamepad.js?v=0.3.15"></script>
+  <script src="js/touch-controls.js?v=0.3.15"></script>
+  <script src="js/app.js?v=0.3.15"></script>
 </body>
 </html>
 
