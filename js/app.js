@@ -14,6 +14,8 @@ class NDSEmulatorApp {
     this.selectedCore = 'desmume'; // DeSmuME por defecto para máxima estabilidad y compatibilidad con Pokémon SoulSilver
     this.userExplicitLayoutChoice = false;
     this.autoSaveInterval = null;
+    this.emulationSpeed = 1.0; // Velocidad dinámica entre 1x y 10x
+    this.lastSavedHash = null;
 
     this.layouts = [
       { id: 'layout-horizontal', name: 'Horizontal (ROG Ally / 16:9)' },
@@ -63,7 +65,7 @@ class NDSEmulatorApp {
       name: isIPhone ? 'iPhone' : (isIPad ? 'iPad' : (isAndroid ? 'Android' : (isHandheld ? 'ROG Ally' : 'PC Desktop')))
     };
 
-    // Inyectar clases al elemento raíz para adaptación CSS
+    // Inyectar clases al elemento raíz y body para adaptación CSS
     const root = document.documentElement;
     root.classList.toggle('device-ios', isIOS);
     root.classList.toggle('device-iphone', isIPhone);
@@ -101,12 +103,12 @@ class NDSEmulatorApp {
    * Inicializa el servicio de auto-guardado en segundo plano y al cerrar pestaña
    */
   initAutoSaveDaemon() {
-    // Auto-sincronizar guardado cada 20 segundos si el juego está en marcha
+    // Polling rápido cada 5 segundos para capturar guardados dentro del juego (ej. Menú Guardar en Pokémon)
     this.autoSaveInterval = setInterval(() => {
       if (this.isEmulating && !this.isPaused) {
         this.triggerSave(true);
       }
-    }, 20000);
+    }, 5000);
 
     // Guardar automáticamente antes de salir o recargar la página
     window.addEventListener('beforeunload', () => {
@@ -121,6 +123,49 @@ class NDSEmulatorApp {
         this.triggerSave(true);
       }
     });
+  }
+
+  /**
+   * Cambia dinámicamente la velocidad de emulación (1x a 10x) mediante botones L2/R2
+   */
+  changeEmulationSpeed(direction) {
+    let nextSpeed = Math.round(this.emulationSpeed + direction);
+    if (nextSpeed > 10) nextSpeed = 10;
+    if (nextSpeed < 1) nextSpeed = 1;
+
+    this.emulationSpeed = nextSpeed;
+    this.applyEmulationSpeed(this.emulationSpeed);
+
+    // Actualizar badge visual en controles táctiles
+    const speedBadge = document.getElementById('touch-speed-hud');
+    if (speedBadge) {
+      speedBadge.textContent = `⚡ ${this.emulationSpeed}x`;
+      speedBadge.style.color = this.emulationSpeed > 1 ? '#00f0ff' : '#ffb800';
+    }
+
+    if (window.saveManager) {
+      window.saveManager.showToast(`⚡ Velocidad: ${this.emulationSpeed}x`, 'info');
+    }
+  }
+
+  /**
+   * Aplica la velocidad en el emulador WebAssembly
+   */
+  applyEmulationSpeed(speed) {
+    if (window.EJS_emulator) {
+      if (typeof window.EJS_emulator.setSpeed === 'function') {
+        try { window.EJS_emulator.setSpeed(speed); } catch (e) {}
+      }
+      const gm = window.EJS_emulator.gameManager;
+      if (gm && gm.functions) {
+        if (typeof gm.functions.setFastForwardRatio === 'function') {
+          try { gm.functions.setFastForwardRatio(speed); } catch (e) {}
+        }
+        if (typeof gm.functions.toggleFastForward === 'function') {
+          try { gm.functions.toggleFastForward(speed > 1.0 ? 1 : 0); } catch (e) {}
+        }
+      }
+    }
   }
 
   initUI() {
@@ -192,13 +237,13 @@ class NDSEmulatorApp {
             await window.saveManager.saveToIndexedDB(file.name, uint8);
             if (this.isEmulating && window.EJS_emulator && window.EJS_emulator.gameManager) {
               const gm = window.EJS_emulator.gameManager;
-              const path = gm.getSaveFilePath();
-              if (path) {
+              const path = gm.getSaveFilePath?.() || `/data/saves/${file.name}`;
+              if (path && gm.FS) {
                 gm.FS.writeFile(path, uint8);
-                gm.loadSaveFiles();
+                gm.loadSaveFiles?.();
               }
             }
-            window.saveManager.showToast(`✅ Partida importada con éxito: ${file.name}`, 'success');
+            window.saveManager.showToast(`✅ Partida importada: ${file.name}`, 'success');
           }
         }
       };
@@ -262,26 +307,6 @@ class NDSEmulatorApp {
     if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', () => this.toggleSettings(false));
     if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', () => this.toggleSettings(false));
 
-    // Ajustes táctiles y hápticos en modal
-    const toggleTouchCheckbox = document.getElementById('toggle-touch-controls');
-    if (toggleTouchCheckbox) {
-      toggleTouchCheckbox.addEventListener('change', (e) => {
-        if (window.touchControls) {
-          if (e.target.checked) window.touchControls.show();
-          else window.touchControls.hide();
-        }
-      });
-    }
-
-    const toggleHapticCheckbox = document.getElementById('toggle-haptic-feedback');
-    if (toggleHapticCheckbox) {
-      toggleHapticCheckbox.addEventListener('change', (e) => {
-        if (window.touchControls) {
-          window.touchControls.hapticEnabled = e.target.checked;
-        }
-      });
-    }
-
     // 7. Controles de Gameplay
     const stopBtn = document.getElementById('btn-stop-game');
     if (stopBtn) stopBtn.addEventListener('click', () => this.stopEmulation());
@@ -290,7 +315,7 @@ class NDSEmulatorApp {
     if (pauseBtn) pauseBtn.addEventListener('click', () => this.togglePause());
 
     const ffBtn = document.getElementById('btn-fast-forward');
-    if (ffBtn) ffBtn.addEventListener('click', () => this.toggleFastForward());
+    if (ffBtn) ffBtn.addEventListener('click', () => this.changeEmulationSpeed(1));
 
     const quickSaveBtn = document.getElementById('btn-quick-savestate');
     if (quickSaveBtn) quickSaveBtn.addEventListener('click', () => this.quickSaveState());
@@ -332,9 +357,7 @@ class NDSEmulatorApp {
     };
 
     const handleKey = (e, isDown) => {
-      // Evitar recursión infinita ignorando eventos sintetizados
       if (!e.isTrusted) return;
-      // Ignorar si el usuario está interactuando con inputs de formularios o modales
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
       if (!this.isEmulating) return;
 
@@ -361,14 +384,10 @@ class NDSEmulatorApp {
       this.deviceInfo = this.detectDevice();
       const isPortraitNow = window.innerHeight > window.innerWidth;
       
-      // Auto-adaptar layout al girar el dispositivo si no ha sido forzado manualmente
       if ((this.deviceInfo.isMobile || this.deviceInfo.isIOS) && !this.userExplicitLayoutChoice) {
         const targetLayout = isPortraitNow ? 'layout-vertical' : 'layout-horizontal';
         if (this.currentLayout !== targetLayout) {
           this.setLayout(targetLayout);
-          if (window.saveManager) {
-            window.saveManager.showToast(`🔄 Modo adaptado: ${isPortraitNow ? 'Vertical (NDS)' : 'Horizontal (16:9)'}`, 'info');
-          }
         }
       }
       this.updateDeviceStatusBadge();
@@ -468,18 +487,37 @@ class NDSEmulatorApp {
     const emulatorContainer = document.getElementById('emulator-container');
     const gameplayBar = document.getElementById('gameplay-bar');
     const gamePlayer = document.getElementById('game-player');
+    const appEl = document.getElementById('app');
 
     if (welcomeScreen) welcomeScreen.style.display = 'none';
     if (emulatorContainer) emulatorContainer.style.display = 'flex';
     if (gameplayBar) gameplayBar.style.display = 'flex';
 
+    // Activar clase is-emulating para limpieza total de pantalla en iOS / Móvil
+    document.body.classList.add('is-emulating');
+    if (appEl) appEl.classList.add('is-emulating');
+    this.isEmulating = true;
+
     // Limpiar contenedor
     gamePlayer.innerHTML = '';
 
     const romUrl = URL.createObjectURL(file);
-
-    // Determinar disposición óptima inicial según el dispositivo
     const isVertical = (this.currentLayout === 'layout-vertical');
+    const baseName = window.saveManager ? window.saveManager.sanitizeName(this.currentRomName) : 'game';
+
+    // Precargar partida previa para EmulatorJS
+    if (window.saveManager) {
+      const priorSave = await window.saveManager.loadExistingSave(this.currentRomName);
+      if (priorSave && priorSave.byteLength > 0) {
+        const saveBlob = new Blob([priorSave], { type: 'application/octet-stream' });
+        const saveUrl = URL.createObjectURL(saveBlob);
+        window.EJS_externalFiles = {
+          [`/data/saves/${baseName}.sav`]: saveUrl,
+          [`/data/saves/${this.currentRomName}.sav`]: saveUrl,
+          '/data/saves/game.sav': saveUrl
+        };
+      }
+    }
 
     // Configuración global para EmulatorJS
     window.EJS_player = '#game-player';
@@ -536,11 +574,13 @@ class NDSEmulatorApp {
       // 2. Aplicar opciones de núcleo para Pantalla Dual y Stylus Táctil
       this.applyCoreTouchSettings();
 
-      // 3. Auto-inyectar partida guardada previa (.sav) desde disco o IndexedDB
+      // 3. Auto-inyectar partida guardada previa (.sav) con reintentos para asegurar carga en SRAM
       if (window.saveManager) {
-        setTimeout(async () => {
-          await window.saveManager.injectSaveIntoEmulator(this.currentRomName);
-        }, 300);
+        [200, 800, 2000].forEach((delay) => {
+          setTimeout(() => {
+            window.saveManager.injectSaveIntoEmulator(this.currentRomName);
+          }, delay);
+        });
       }
     };
 

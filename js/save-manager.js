@@ -293,18 +293,26 @@ class SaveManager {
    */
   async loadExistingSave(romName) {
     const baseName = this.sanitizeName(romName || this.currentRomName);
-    const filename = `${baseName}.sav`;
+    const candidateNames = [
+      `${baseName}.sav`,
+      `${baseName}.dsv`,
+      `${romName}.sav`,
+      `game.sav`,
+      `game.dsv`
+    ];
 
     // 1. Comprobar en disco si hay carpeta vinculada
     if (this.directoryHandle) {
-      try {
-        const fileHandle = await this.directoryHandle.getFileHandle(filename);
-        const file = await fileHandle.getFile();
-        const arrayBuffer = await file.arrayBuffer();
-        console.log(`Partida previa encontrada en disco: ${filename}`);
-        return new Uint8Array(arrayBuffer);
-      } catch (err) {
-        console.log(`No se encontró .sav en disco para ${filename}`);
+      for (const fname of candidateNames) {
+        try {
+          const fileHandle = await this.directoryHandle.getFileHandle(fname);
+          const file = await fileHandle.getFile();
+          const arrayBuffer = await file.arrayBuffer();
+          if (arrayBuffer && arrayBuffer.byteLength > 0) {
+            console.log(`Partida previa encontrada en disco: ${fname}`);
+            return new Uint8Array(arrayBuffer);
+          }
+        } catch (err) {}
       }
     }
 
@@ -313,16 +321,26 @@ class SaveManager {
       return new Promise((resolve) => {
         try {
           const tx = this.db.transaction('saves', 'readonly');
-          const req = tx.objectStore('saves').get(filename);
-          req.onsuccess = () => {
-            if (req.result && req.result.data) {
-              console.log(`Partida previa recuperada de IndexedDB: ${filename}`);
-              resolve(new Uint8Array(req.result.data));
-            } else {
-              resolve(null);
-            }
-          };
-          req.onerror = () => resolve(null);
+          const store = tx.objectStore('saves');
+
+          let foundData = null;
+          let pending = candidateNames.length;
+
+          candidateNames.forEach((fname) => {
+            const req = store.get(fname);
+            req.onsuccess = () => {
+              if (req.result && req.result.data && req.result.data.length > 0 && !foundData) {
+                foundData = new Uint8Array(req.result.data);
+                console.log(`Partida previa recuperada de IndexedDB: ${fname}`);
+              }
+              pending--;
+              if (pending === 0) resolve(foundData);
+            };
+            req.onerror = () => {
+              pending--;
+              if (pending === 0) resolve(foundData);
+            };
+          });
         } catch (e) {
           resolve(null);
         }
@@ -337,7 +355,10 @@ class SaveManager {
    */
   async injectSaveIntoEmulator(romName) {
     const saveData = await this.loadExistingSave(romName);
-    if (!saveData || saveData.length === 0) return false;
+    if (!saveData || saveData.length === 0) {
+      console.log('No se encontraron datos de guardado previo para inyectar.');
+      return false;
+    }
 
     if (!window.EJS_emulator || !window.EJS_emulator.gameManager) {
       console.warn('injectSaveIntoEmulator: GameManager no está listo todavía.');
@@ -345,35 +366,43 @@ class SaveManager {
     }
 
     const gm = window.EJS_emulator.gameManager;
-    const saveFilePath = gm.getSaveFilePath();
+    const baseName = this.sanitizeName(romName || this.currentRomName);
+    const saveFilePath = gm.getSaveFilePath?.() || `/data/saves/${baseName}.sav`;
 
-    if (!saveFilePath) {
-      console.warn('injectSaveIntoEmulator: No se pudo obtener getSaveFilePath()');
-      return false;
-    }
+    const targetPaths = [
+      saveFilePath,
+      `/data/saves/${baseName}.sav`,
+      `/data/saves/${baseName}.dsv`,
+      `/data/saves/game.sav`,
+      `/data/saves/game.dsv`
+    ];
 
     try {
-      // Asegurar que la ruta exista
-      const paths = saveFilePath.split('/');
-      let currentPath = '';
-      for (let i = 0; i < paths.length - 1; i++) {
-        if (!paths[i].trim()) continue;
-        currentPath += '/' + paths[i];
-        if (!gm.FS.analyzePath(currentPath).exists) {
-          gm.FS.mkdir(currentPath);
+      // Asegurar que /data y /data/saves existan
+      if (gm.FS) {
+        if (!gm.FS.analyzePath('/data').exists) gm.FS.mkdir('/data');
+        if (!gm.FS.analyzePath('/data/saves').exists) gm.FS.mkdir('/data/saves');
+
+        // Escribir en todas las posibles rutas de guardado
+        for (const p of targetPaths) {
+          try {
+            if (gm.FS.analyzePath(p).exists) gm.FS.unlink(p);
+            gm.FS.writeFile(p, saveData);
+          } catch (e) {}
         }
-      }
 
-      // Escribir el archivo .sav
-      if (gm.FS.analyzePath(saveFilePath).exists) {
-        gm.FS.unlink(saveFilePath);
-      }
-      gm.FS.writeFile(saveFilePath, saveData);
+        // Notificar al núcleo RetroArch para recargar SRAM
+        if (typeof gm.loadSaveFiles === 'function') {
+          gm.loadSaveFiles();
+        }
+        if (typeof gm.FS.syncfs === 'function') {
+          gm.FS.syncfs(false, () => {});
+        }
 
-      // Notificar al núcleo para recargar la memoria SRAM
-      gm.loadSaveFiles();
-      this.showToast(`✅ Partida previa cargada con éxito (${this.sanitizeName(romName)}.sav)`, 'success');
-      return true;
+        console.log(`✅ Partida previa inyectada exitosamente (${saveData.byteLength} bytes)`);
+        this.showToast(`✅ Partida cargada (${baseName}.sav)`, 'success');
+        return true;
+      }
     } catch (err) {
       console.error('Error inyectando partida previa en el núcleo WASM:', err);
       return false;
@@ -389,27 +418,29 @@ class SaveManager {
     // Intentar extraer directamente del núcleo WASM
     if (window.EJS_emulator && window.EJS_emulator.gameManager) {
       try {
-        saveData = window.EJS_emulator.gameManager.getSaveFile();
+        const gm = window.EJS_emulator.gameManager;
+        if (typeof gm.saveSaveFiles === 'function') gm.saveSaveFiles();
+        if (typeof gm.getSaveFile === 'function') saveData = gm.getSaveFile();
       } catch (e) {
         console.warn('Error extrayendo saveFile de gameManager:', e);
       }
     }
 
-    // Si no está en ejecución, intentar desde IndexedDB
-    if (!saveData) {
+    // Si no está en ejecución o vino vacío, intentar desde IndexedDB
+    if (!saveData || saveData.byteLength === 0) {
       saveData = await this.loadExistingSave(romName || this.currentRomName);
     }
 
-    if (saveData && saveData.length > 0) {
+    if (saveData && saveData.byteLength > 0) {
       const filename = `${this.sanitizeName(romName || this.currentRomName)}.sav`;
       this.generateSavFileDownload(saveData, filename);
     } else {
-      this.showToast('⚠️ No hay datos de partida guardados aún. Guarda primero dentro del juego.', 'warning');
+      this.showToast('⚠️ No se encontraron datos de guardado aún. Guarda primero dentro del juego.', 'warning');
     }
   }
 
   sanitizeName(name) {
-    if (!name) return 'game';
+    if (!name) return 'Pokemon - Edicion Plata SoulSilver';
     return name.replace(/\.(nds|zip|7z|sav|dsv)$/i, '').trim();
   }
 
@@ -427,7 +458,7 @@ class SaveManager {
       toast.style.transform = 'translateX(50px)';
       toast.style.transition = 'all 0.3s ease';
       setTimeout(() => toast.remove(), 300);
-    }, 4000);
+    }, 3500);
   }
 }
 

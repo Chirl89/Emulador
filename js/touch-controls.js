@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Touch Controls
  * Controles virtuales en pantalla para Safari iOS / ROG Ally / Pantalla Táctil
- * Versión: v0.1.9
+ * Versión: v0.2.2
  */
 
 class TouchControls {
@@ -52,7 +52,23 @@ class TouchControls {
         if (isPressed) return;
         isPressed = true;
         btn.classList.add('pressed');
-        this.triggerHaptic(20);
+        this.triggerHaptic(25);
+
+        // Manejo especial de botones L2 y R2 para control dinámico de velocidad (1x a 10x)
+        if (keyName === 'r2') {
+          if (window.app && typeof window.app.changeEmulationSpeed === 'function') {
+            window.app.changeEmulationSpeed(1);
+          }
+          return;
+        }
+
+        if (keyName === 'l2') {
+          if (window.app && typeof window.app.changeEmulationSpeed === 'function') {
+            window.app.changeEmulationSpeed(-1);
+          }
+          return;
+        }
+
         if (keyName) this.sendKeyEvent(keyName, true);
       };
 
@@ -64,7 +80,10 @@ class TouchControls {
         if (!isPressed) return;
         isPressed = false;
         btn.classList.remove('pressed');
-        if (keyName) this.sendKeyEvent(keyName, false);
+
+        if (keyName && keyName !== 'r2' && keyName !== 'l2') {
+          this.sendKeyEvent(keyName, false);
+        }
       };
 
       // Si el navegador soporta Pointer Events (Opera GX, Chrome, Safari 13+, Edge)
@@ -91,15 +110,15 @@ class TouchControls {
       menuBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (window.app) window.app.toggleSettings();
+        if (window.app) window.app.toggleSettings(true);
       });
     }
 
-    // Auto-mostrar SOLO en móviles reales (Safari iOS / Android) sin mando físico
+    // Auto-mostrar en móviles reales (Safari iOS / Android) sin mando físico
     if (isPureMobile && !this.gamepadConnected && this.userPreference !== 'hide') {
       this.show();
     } else {
-      this.hide();
+      this.show(); // Siempre activo en la zona de 1/3 de pantalla
     }
   }
 
@@ -130,17 +149,11 @@ class TouchControls {
 
   onGamepadConnected() {
     this.gamepadConnected = true;
-    if (this.userPreference !== 'show') {
-      this.hide();
-    }
   }
 
   onGamepadDisconnected() {
     this.gamepadConnected = false;
-    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-    if (isTouchDevice && this.userPreference !== 'hide') {
-      this.show();
-    }
+    this.show();
   }
 
   triggerHaptic(ms = 25) {
@@ -188,4 +201,5 @@ class TouchControls {
 }
 
 window.touchControls = new TouchControls();
+
 

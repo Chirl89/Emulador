@@ -470,13 +470,68 @@ html, body {
   object-fit: contain;
 }
 
-/* En iPhone / iOS en orientación vertical, maximizar aprovechamiento de pantalla */
+/* En iPhone / iOS en orientación vertical, distribución exacta 1/3 pantalla superior, 1/3 pantalla inferior, 1/3 controles */
 .device-portrait .emulator-container.layout-vertical .game-player canvas,
-.device-iphone .emulator-container.layout-vertical .game-player canvas {
-  width: 100% !important;
-  height: auto !important;
+.device-iphone .emulator-container.layout-vertical .game-player canvas,
+.device-ios .emulator-container.layout-vertical .game-player canvas {
+  height: 100% !important;
+  width: auto !important;
+  max-width: 100% !important;
   max-height: 100% !important;
-  object-fit: contain;
+  object-fit: contain !important;
+}
+
+/* Limpieza total de pantalla en iOS / Móvil vertical durante la emulación */
+.device-ios.is-emulating .top-header,
+.device-portrait.is-emulating .top-header,
+.device-ios.is-emulating .bottom-bar,
+.device-portrait.is-emulating .bottom-bar {
+  display: none !important;
+}
+
+.device-ios.is-emulating .main-content,
+.device-portrait.is-emulating .main-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* 2/3 de pantalla dedicados exactamente a las 2 pantallas de NDS (1/3 superior y 1/3 inferior) */
+.device-ios.is-emulating .emulator-container,
+.device-portrait.is-emulating .emulator-container {
+  width: 100vw !important;
+  height: calc(100dvh * 2 / 3) !important;
+  flex: 0 0 calc(100dvh * 2 / 3) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #000 !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.device-ios.is-emulating .emulator-container .game-player,
+.device-portrait.is-emulating .emulator-container .game-player {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* 1/3 de pantalla dedicado a los controles táctiles */
+.device-ios.is-emulating .touch-controls-overlay,
+.device-portrait.is-emulating .touch-controls-overlay {
+  width: 100vw !important;
+  height: calc(100dvh / 3) !important;
+  flex: 0 0 calc(100dvh / 3) !important;
+  display: flex !important;
+  position: relative !important;
 }
 
 /* Layout Horizontal (Pantallas lado a lado para Asus ROG Ally 16:9) */
