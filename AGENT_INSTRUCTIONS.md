@@ -57,17 +57,17 @@ Este documento establece las reglas obligatorias e inmutables para cualquier age
 
 ---
 
-## 🛡️ Regla Obligatoria: Commit Automático en Git (SIEMPRE)
+## 🛡️ Regla Obligatoria: Commit y Push Automático en Git (SIEMPRE)
 
-1. **Obligación Ineludible de Commit**:
-   - En **CADA respuesta, iteración o tarea** donde se modifique, cree o elimine cualquier archivo del proyecto, el agente **DEBE ejecutar obligatoriamente un commit en Git** antes de responder al usuario.
+1. **Obligación Ineludible de Commit y Push**:
+   - En **CADA respuesta, iteración o tarea** donde se modifique, cree o elimine cualquier archivo del proyecto, el agente **DEBE ejecutar obligatoriamente un commit y un push a GitHub (`origin main`)** antes de responder al usuario.
    - **Comando estándar**:
      ```bash
-     git add . ; git commit -m "v[Versión] - [Descripción concisa del cambio realizado]"
+     git add . ; git commit -m "v[Versión] - [Descripción concisa del cambio realizado]" ; git push origin main
      ```
 2. **Sincronización con el Versionado**:
-   - Cada commit debe llevar el prefijo de la versión actual (`v0.2.1`, `v0.2.2`, etc.).
-   - Nunca dejar cambios pendientes sin commitear en el árbol de trabajo (`working directory clean`).
+   - Cada commit debe llevar el prefijo de la versión actual (`v0.2.1`, `v0.6.1`, etc.).
+   - Nunca dejar cambios pendientes sin commitear ni sin pushear (`working directory clean` y `up to date with origin/main`).
 3. **Flujo de Cierre de Turno**:
-   - Antes de dar por finalizada la respuesta o turno, verificar con `git status` que todo haya sido añadido y commiteado exitosamente.
+   - Antes de dar por finalizada la respuesta o turno, verificar con `git status` que todo haya sido añadido, commiteado y pusheado exitosamente.
 
