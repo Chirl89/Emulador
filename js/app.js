@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.7.3
+ * Versión: v0.7.4
  */
 
 class NDSEmulatorApp {
@@ -1329,6 +1329,10 @@ class NDSEmulatorApp {
       this.applyVideoFilter(this.videoFilter);
       this.applyTouchOpacity(this.touchOpacity);
 
+      if (window.touchControls && typeof window.touchControls.onGameStart === 'function') {
+        window.touchControls.onGameStart();
+      }
+
       // Inyección protegida de partida previa
       if (window.saveManager) {
         const priorSave = await window.saveManager.loadExistingSave(this.currentRomName);
@@ -2078,7 +2082,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.7.3') {
+              if (key !== 'nds-emulator-v0.7.4') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2086,7 +2090,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.7.3').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.7.4').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

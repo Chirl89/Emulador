@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - ROG Ally & Safari Edition
-   Estilos Principales v0.7.3
+   Estilos Principales v0.7.4
    ========================================================================== */
 
 :root {
@@ -824,48 +824,12 @@ body.is-emulating .main-content,
    Contenedor Principal de la Emulación (is-emulating)
    ========================================================================== */
 
-/* 1. Modo por Defecto / Asus ROG Ally / PC / Sin Controles Táctiles (Pantalla Completa 100%) */
+/* 1. Modo Estándar con Controles Táctiles (Safari iOS PWA / Móvil por defecto)
+   Distribución optimizada: 72% de pantalla para pantallas NDS gigantes y 28% inferior para controles compactos */
 html.is-emulating .emulator-container,
 body.is-emulating .emulator-container,
 .is-emulating .emulator-container,
 #app.is-emulating .emulator-container {
-  width: 100vw !important;
-  height: 100vh !important;
-  height: 100dvh !important;
-  max-height: 100dvh !important;
-  flex: 1 1 100% !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  background: #000000 !important;
-  position: relative !important;
-  overflow: hidden !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  box-sizing: border-box !important;
-}
-
-html.is-emulating .touch-controls-overlay,
-body.is-emulating .touch-controls-overlay,
-.is-emulating .touch-controls-overlay,
-#app.is-emulating .touch-controls-overlay {
-  display: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  max-height: 0 !important;
-  flex: 0 0 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  border: none !important;
-  overflow: hidden !important;
-}
-
-/* 2. Modo con Controles Táctiles Activos (Safari iOS Vertical / Táctil Activado)
-   Distribución optimizada: 72% de pantalla para pantallas NDS gigantes y 28% inferior para controles compactos */
-html.is-emulating.touch-controls-visible .emulator-container,
-body.is-emulating.touch-controls-visible .emulator-container,
-.is-emulating.touch-controls-visible .emulator-container,
-#app.is-emulating.touch-controls-visible .emulator-container {
   width: 100vw !important;
   height: calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 0.72 + env(safe-area-inset-top, 0px)) !important;
   max-height: calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 0.72 + env(safe-area-inset-top, 0px)) !important;
@@ -884,10 +848,10 @@ body.is-emulating.touch-controls-visible .emulator-container,
   box-sizing: border-box !important;
 }
 
-html.is-emulating.touch-controls-visible .touch-controls-overlay,
-body.is-emulating.touch-controls-visible .touch-controls-overlay,
-.is-emulating.touch-controls-visible .touch-controls-overlay,
-#app.is-emulating.touch-controls-visible .touch-controls-overlay {
+html.is-emulating .touch-controls-overlay,
+body.is-emulating .touch-controls-overlay,
+.is-emulating .touch-controls-overlay,
+#app.is-emulating .touch-controls-overlay {
   width: 100vw !important;
   max-width: 100vw !important;
   height: calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 0.28 + env(safe-area-inset-bottom, 0px)) !important;
@@ -901,6 +865,34 @@ body.is-emulating.touch-controls-visible .touch-controls-overlay,
   padding-left: max(6px, env(safe-area-inset-left, 6px)) !important;
   padding-right: max(8px, env(safe-area-inset-right, 8px)) !important;
   box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+/* 2. Modo Pantalla Completa 100% (Asus ROG Ally / PC Desktop / Controles Táctiles Ocultados) */
+html.is-emulating.touch-controls-hidden .emulator-container,
+body.is-emulating.touch-controls-hidden .emulator-container,
+.is-emulating.touch-controls-hidden .emulator-container,
+#app.is-emulating.touch-controls-hidden .emulator-container {
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  flex: 1 1 100% !important;
+  padding: 0 !important;
+}
+
+html.is-emulating.touch-controls-hidden .touch-controls-overlay,
+body.is-emulating.touch-controls-hidden .touch-controls-overlay,
+.is-emulating.touch-controls-hidden .touch-controls-overlay,
+#app.is-emulating.touch-controls-hidden .touch-controls-overlay {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  flex: 0 0 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
   overflow: hidden !important;
 }
 

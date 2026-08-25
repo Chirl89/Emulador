@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Save Manager
  * Gestor acorazado de partidas, Bóveda Time-Machine, prevención de pérdidas y sincronización
- * Versión: v0.7.3
+ * Versión: v0.7.4
  */
 
 class SaveManager {
