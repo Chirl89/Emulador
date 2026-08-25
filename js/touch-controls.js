@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Touch Controls
  * Controles virtuales en pantalla para Safari iOS / ROG Ally / Pantalla Táctil
- * Versión: v0.5.1
+ * Versión: v0.6.0
  */
 
 class TouchControls {
@@ -11,6 +11,7 @@ class TouchControls {
     this.visible = false;
     this.gamepadConnected = false;
     this.userPreference = localStorage.getItem('nds_touch_mode') || 'auto'; // 'auto', 'show', 'hide'
+    this.cachedCanvas = null;
 
     // Mapa de teclas y códigos exactos esperados por EmulatorJS (DeSmuME)
     this.keyDefinitions = {
@@ -34,8 +35,6 @@ class TouchControls {
   init() {
     if (!this.overlay) return;
 
-    const isPureMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
     // Configurar listeners en cada botón táctil
     const buttons = this.overlay.querySelectorAll('.touch-btn');
     buttons.forEach((btn) => {
@@ -52,7 +51,7 @@ class TouchControls {
         if (isPressed) return;
         isPressed = true;
         btn.classList.add('pressed');
-        this.triggerHaptic(25);
+        this.triggerHaptic(20);
 
         // Manejo especial de botones L2 y R2 para control dinámico de velocidad (1x a 3x Turbo)
         if (keyName === 'r2') {
@@ -86,11 +85,11 @@ class TouchControls {
         }
       };
 
-      // Si el navegador soporta Pointer Events (Opera GX, Chrome, Safari 13+, Edge)
+      // Si el navegador soporta Pointer Events (Safari 13+, Chrome, Opera GX, Edge)
       if (window.PointerEvent) {
-        btn.addEventListener('pointerdown', pressBtn);
-        btn.addEventListener('pointerup', releaseBtn);
-        btn.addEventListener('pointercancel', releaseBtn);
+        btn.addEventListener('pointerdown', pressBtn, { passive: false });
+        btn.addEventListener('pointerup', releaseBtn, { passive: false });
+        btn.addEventListener('pointercancel', releaseBtn, { passive: false });
         btn.addEventListener('pointerleave', (e) => {
           if (isPressed && e.buttons === 0) releaseBtn(e);
         });
@@ -110,6 +109,7 @@ class TouchControls {
   }
 
   onGameStart() {
+    this.cachedCanvas = null;
     const isPureMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isPureMobile && !this.gamepadConnected && this.userPreference !== 'hide') {
       this.show();
@@ -156,7 +156,7 @@ class TouchControls {
     }
   }
 
-  triggerHaptic(ms = 25) {
+  triggerHaptic(ms = 20) {
     if (this.hapticEnabled && navigator.vibrate) {
       try {
         navigator.vibrate(ms);
@@ -165,7 +165,7 @@ class TouchControls {
   }
 
   sendKeyEvent(keyName, isDown) {
-    // Si gamepadController ya tiene el despachador optimizado, usarlo
+    // 1. Despachador C-WASM optimizado si está presente
     if (window.gamepadController && typeof window.gamepadController.dispatchKey === 'function') {
       window.gamepadController.dispatchKey(keyName, isDown);
       return;
@@ -193,9 +193,11 @@ class TouchControls {
     document.dispatchEvent(event);
     if (document.body) document.body.dispatchEvent(event);
 
-    const canvas = document.querySelector('#game-player canvas') || document.querySelector('canvas');
-    if (canvas) {
-      canvas.dispatchEvent(event);
+    if (!this.cachedCanvas || !this.cachedCanvas.isConnected) {
+      this.cachedCanvas = document.querySelector('#game-player canvas') || document.querySelector('canvas');
+    }
+    if (this.cachedCanvas) {
+      this.cachedCanvas.dispatchEvent(event);
     }
   }
 }

@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.5.1
+ * Versión: v0.6.0
  */
 
 class NDSEmulatorApp {
@@ -25,6 +25,9 @@ class NDSEmulatorApp {
 
     // Filtros de pantalla y renderizado
     this.videoFilter = localStorage.getItem('nds_video_filter') || 'pixelated';
+
+    // Configuración de rendimiento y salto de cuadros (Frameskip) para iOS y dispositivos móviles
+    this.frameskip = localStorage.getItem('nds_frameskip') || 'auto';
 
     // Configuración de controles táctiles
     this.touchOpacity = localStorage.getItem('nds_touch_opacity') !== null ? parseFloat(localStorage.getItem('nds_touch_opacity')) : 0.95;
@@ -93,6 +96,7 @@ class NDSEmulatorApp {
 
   /**
    * Oculta de forma permanente y segura cualquier menú modal, truco, menú contextual o captura del motor
+   * Utiliza MutationObserver pasivo para eliminar el consumo de CPU y evitar micro-congelamientos en iOS
    */
   initEngineGuard() {
     const purgeIntrusiveElements = () => {
@@ -132,7 +136,21 @@ class NDSEmulatorApp {
       }
     };
 
-    setInterval(purgeIntrusiveElements, 100);
+    purgeIntrusiveElements();
+
+    // Observador pasivo sin polling agresivo (0ms CPU en iOS)
+    if (window.MutationObserver) {
+      const observer = new MutationObserver(() => {
+        purgeIntrusiveElements();
+      });
+      const target = document.body || document.documentElement;
+      if (target) {
+        observer.observe(target, { childList: true, subtree: true });
+      }
+    }
+
+    // Comprobación de seguridad a muy baja frecuencia (cada 3.5 segundos)
+    setInterval(purgeIntrusiveElements, 3500);
   }
 
   /**
@@ -492,6 +510,27 @@ class NDSEmulatorApp {
       });
     }
 
+    const settingsFrameskipSelector = document.getElementById('settings-frameskip-selector');
+    const welcomeFrameskipSelector = document.getElementById('welcome-frameskip-selector');
+
+    const handleFrameskipChange = (e) => {
+      this.frameskip = e.target.value;
+      localStorage.setItem('nds_frameskip', e.target.value);
+      this.applyFrameskip(this.frameskip);
+      if (settingsFrameskipSelector) settingsFrameskipSelector.value = this.frameskip;
+      if (welcomeFrameskipSelector) welcomeFrameskipSelector.value = this.frameskip;
+      window.saveManager?.showToast(`⚡ Salto de cuadros: ${e.target.options[e.target.selectedIndex].text}`, 'info');
+    };
+
+    if (settingsFrameskipSelector) {
+      settingsFrameskipSelector.value = this.frameskip;
+      settingsFrameskipSelector.addEventListener('change', handleFrameskipChange);
+    }
+    if (welcomeFrameskipSelector) {
+      welcomeFrameskipSelector.value = this.frameskip;
+      welcomeFrameskipSelector.addEventListener('change', handleFrameskipChange);
+    }
+
     // 3. Pantalla y Filtros
     const settingsLayoutSelector = document.getElementById('settings-layout-selector');
     const settingsFilterSelector = document.getElementById('settings-filter-selector');
@@ -707,7 +746,6 @@ class NDSEmulatorApp {
       's': 'y', 'S': 'y',
       'q': 'l', 'Q': 'l',
       'e': 'r', 'E': 'r',
-      'w': 'r', 'W': 'r',
       'Enter': 'start',
       'v': 'select', 'V': 'select',
       'Shift': 'select'
@@ -1188,10 +1226,14 @@ class NDSEmulatorApp {
     window.EJS_language = "en-US";
     window.EJS_backgroundColor = '#000000';
     
+    const isIOSDevice = this.deviceInfo.isIOS || this.deviceInfo.isIPhone || this.deviceInfo.isIPad;
+
     window.EJS_defaultOptions = {
       "notification_show_fast_forward": "false",
       "video_font_enable": "false",
       "desmume_screens_layout": isVertical ? "top/bottom" : "left/right",
+      "desmume_hybrid_layout_scale": "1",
+      "desmume_screens_gap": "0",
       "desmume_pointer_type": "touch",
       "desmume_pointer_device": "touch",
       "desmume_pointer_device_l": "touch",
@@ -1202,15 +1244,21 @@ class NDSEmulatorApp {
       "desmume_advanced_timing": "disabled",
       "desmume_internal_resolution": "256x192",
       "desmume_opengl_mode": "disabled",
-      "desmume_spu_interpolation": "linear",
+      "desmume_spu_interpolation": "none",
       "desmume_cpu_mode": "jit",
-      "desmume_frameskip": "0",
+      "desmume_frameskip": this.frameskip.toString(),
+      "desmume_gfx_edging": "disabled",
+      "desmume_gfx_texture_deposterize": "disabled",
+      "desmume_gfx_texture_smoothing": "disabled",
+      "desmume_num_cores": "2",
+      "desmume_color_depth": "16-bit",
       "melonds_touch_mode": "touch",
       "melonds_screen_layout": isVertical ? "Top/Bottom" : "Horizontal",
       "melonds_screens_layout": isVertical ? "top/bottom" : "left/right",
       "melonds_threaded_renderer": "enabled",
       "melonds_jit_enable": "enabled",
-      "melonds_audio_interpolation": "none"
+      "melonds_audio_interpolation": "none",
+      "melonds_frameskip": this.frameskip.toString()
     };
 
     window.EJS_VirtualGamepadSettings = { disabled: true };
@@ -1218,7 +1266,7 @@ class NDSEmulatorApp {
     window.EJS_Settings = {
       default_controls: true,
       volume: this.audioMuted ? 0.0 : this.audioVolume,
-      audio_latency: 128,
+      audio_latency: isIOSDevice ? 384 : 128,
       video_vsync: true,
       video_smooth: (this.videoFilter === 'smooth'),
       video_threaded: true
@@ -1494,8 +1542,35 @@ class NDSEmulatorApp {
       const isHorizontal = (this.currentLayout === 'layout-horizontal');
       gm.setVariable('desmume_screens_layout', isHorizontal ? 'left/right' : 'top/bottom');
       gm.setVariable('melonds_screen_layout', isHorizontal ? 'Horizontal' : 'Top/Bottom');
+
+      // Fijar parámetros estables sin conmutaciones indeseadas
+      gm.setVariable('desmume_hybrid_layout_scale', '1');
+      gm.setVariable('desmume_screens_gap', '0');
+      gm.setVariable('desmume_spu_interpolation', 'none');
+      gm.setVariable('desmume_frameskip', this.frameskip.toString());
+      gm.setVariable('melonds_frameskip', this.frameskip.toString());
     } catch (e) {
       console.warn('Error configurando variables de núcleo:', e);
+    }
+  }
+
+  /**
+   * Aplica dinámicamente el salto de cuadros (Frameskip) en caliente
+   */
+  applyFrameskip(frameskip) {
+    this.frameskip = frameskip;
+    localStorage.setItem('nds_frameskip', frameskip.toString());
+
+    if (window.EJS_emulator && window.EJS_emulator.gameManager) {
+      const gm = window.EJS_emulator.gameManager;
+      if (typeof gm.setVariable === 'function') {
+        try {
+          gm.setVariable('desmume_frameskip', frameskip.toString());
+          gm.setVariable('melonds_frameskip', frameskip.toString());
+        } catch (e) {
+          console.warn('Error aplicando frameskip en vivo:', e);
+        }
+      }
     }
   }
 
@@ -1540,6 +1615,10 @@ class NDSEmulatorApp {
       if (welcomeSaveMode && window.saveManager) {
         welcomeSaveMode.value = window.saveManager.saveMode;
       }
+      const welcomeFrameskip = document.getElementById('welcome-frameskip-selector');
+      if (welcomeFrameskip) {
+        welcomeFrameskip.value = this.frameskip;
+      }
       modal.style.display = 'flex';
     } else {
       modal.style.display = 'none';
@@ -1562,6 +1641,12 @@ class NDSEmulatorApp {
 
     const coreSelector = document.getElementById('core-selector');
     if (coreSelector) coreSelector.value = this.selectedCore;
+
+    const frameskipSelector = document.getElementById('settings-frameskip-selector');
+    if (frameskipSelector) frameskipSelector.value = this.frameskip;
+
+    const welcomeFrameskip = document.getElementById('welcome-frameskip-selector');
+    if (welcomeFrameskip) welcomeFrameskip.value = this.frameskip;
 
     const layoutSelector = document.getElementById('settings-layout-selector');
     if (layoutSelector) layoutSelector.value = this.currentLayout;
@@ -1879,7 +1964,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.5.0') {
+              if (key !== 'nds-emulator-v0.6.0') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1887,7 +1972,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.5.0').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.6.0').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

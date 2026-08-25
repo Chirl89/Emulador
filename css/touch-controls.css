@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - Controles Táctiles para Safari iOS & Móvil
-   touch-controls.css v0.5.1 (Ajuste iOS Anti-Desborde & Select/Start Alineado)
+   touch-controls.css v0.6.0 (Ajuste iOS Anti-Desborde & Fluidez 60 FPS)
    ========================================================================== */
 
 /* Ocultar completamente cualquier control táctil duplicado generado internamente por EmulatorJS */
@@ -39,6 +39,8 @@
   border-top: 1px solid rgba(0, 240, 255, 0.2);
   box-sizing: border-box;
   overflow: hidden;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
 }
 
 .touch-group {
@@ -51,7 +53,7 @@
   box-sizing: border-box;
 }
 
-/* Botones genéricos de toque con soporte de opacidad */
+/* Botones genéricos de toque con soporte de opacidad y cero latencia */
 .touch-btn {
   background: rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(8px);
@@ -67,16 +69,19 @@
   cursor: pointer;
   touch-action: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  transition: transform 0.05s ease, background 0.05s ease, border-color 0.05s ease;
+  transition: transform 0.04s ease, background 0.04s ease, border-color 0.04s ease;
   user-select: none;
   -webkit-user-select: none;
   opacity: var(--touch-btn-opacity, 0.95);
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .touch-btn:active, .touch-btn.pressed {
   background: rgba(0, 240, 255, 0.5);
   border-color: #00f0ff;
-  transform: scale(0.92);
+  transform: scale(0.92) translate3d(0, 0, 0);
   box-shadow: 0 0 16px rgba(0, 240, 255, 0.7);
   opacity: 1;
 }

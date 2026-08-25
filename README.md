@@ -1,18 +1,20 @@
 # 🎮 NDS Web Emulator (ROG Ally & Safari Edition)
 
-[![Version](https://img.shields.io/badge/version-v0.5.1-00f0ff.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-v0.6.0-00f0ff.svg)](./VERSION)
 [![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS%20|%20Opera%20GX-ff0055.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssembly (DeSmuME / melonDS core), optimizado específicamente para:
-1. **🛡️ Sistema Acorazado de Guardado & Bóveda Time-Machine**: Historial con hasta 30 snapshots automáticos por juego, prevención total de sobreescritura con SRAM en blanco, resolución inteligente de conflictos por marcas de tiempo y restauración con 1 clic.
-2. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
-3. **Acceso Directo a ROMs Recientes (.nds)**: Lista de juegos jugados en orden de última partida para jugar con 1 clic sin tener que navegar por archivos ni volver a seleccionarlos.
-4. **📱 Controles Táctiles Optimizados para Safari iOS**: Geometría ajustada anti-desborde lateral en pantallas móviles, alineación perfecta de Select y Start a la altura inferior de la cruceta, selector de opacidad y respuesta háptica.
-5. **⚙️ Menú de Configuración en Bienvenida & Ajustes Reales en Partida**: Panel dedicado en pantalla principal para gestión de PubNub, Bóveda y carpetas locales; y ajustes en vivo para sonido (volumen, activación, desbloqueo), filtros gráficos (Pixel Art, Smooth, CRT), velocidad y núcleos.
-6. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
-7. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
-8. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
+1. **🚀 Máxima Fluidez & 60 FPS en Safari iOS**: Optimizaciones en el motor WebAssembly (DSP de audio ultrarrápido sin interpolación costosa, latencia de audio adaptada a WebKit para evitar parones, selector de Frameskip y aceleración GPU nativa por capas `translate3d`).
+2. **🕹️ Corrección Total de Gatillos L y R**: Inyección limpia de botones directos C-WASM sin disparos accidentales de funciones de pantalla (Screen Swap) ni pantallas en blanco.
+3. **🛡️ Sistema Acorazado de Guardado & Bóveda Time-Machine**: Historial con hasta 30 snapshots automáticos por juego, prevención total de sobreescritura con SRAM en blanco, resolución inteligente de conflictos por marcas de tiempo y restauración con 1 clic.
+4. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
+5. **Acceso Directo a ROMs Recientes (.nds)**: Lista de juegos jugados en orden de última partida para jugar con 1 clic sin tener que navegar por archivos ni volver a seleccionarlos.
+6. **📱 Controles Táctiles Optimizados para Safari iOS**: Geometría ajustada anti-desborde lateral en pantallas móviles, alineación perfecta de Select y Start a la altura inferior de la cruceta, selector de opacidad y respuesta háptica instantánea.
+7. **⚙️ Menú de Configuración en Bienvenida & Ajustes Reales en Partida**: Panel dedicado en pantalla principal para gestión de PubNub, Bóveda, frameskip y carpetas locales; y ajustes en vivo para sonido (volumen, activación, desbloqueo), filtros gráficos (Pixel Art, Smooth, CRT), velocidad, salto de cuadros y núcleos.
+8. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
+9. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
+10. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
 
 ---
 

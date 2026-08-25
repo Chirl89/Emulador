@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - ROG Ally & Safari Edition
-   Estilos Principales v0.5.1
+   Estilos Principales v0.6.0
    ========================================================================== */
 
 :root {
@@ -753,6 +753,11 @@ canvas {
   cursor: crosshair;
   object-fit: contain !important;
   margin: auto !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  transform: translate3d(0, 0, 0) !important;
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* En iPhone / iOS en orientación vertical, distribución exacta 1/3 pantalla superior, 1/3 pantalla inferior, 1/3 controles */

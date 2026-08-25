@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Gamepad Manager
  * Soporte especializado para Asus ROG Ally (Mando integrado XInput) y mandos estándar
- * Versión: v0.1.9
+ * Versión: v0.6.0
  */
 
 class GamepadController {
@@ -222,15 +222,6 @@ class GamepadController {
       if (sim) {
         try {
           sim(0, buttonId, isDown ? 1 : 0);
-          // Si es L o R, disparar tanto L1 (10)/R1 (11) como L2 (12)/R2 (13) para compatibilidad total con núcleos
-          if (name === 'l') {
-            sim(0, 10, isDown ? 1 : 0);
-            sim(0, 12, isDown ? 1 : 0);
-          }
-          if (name === 'r') {
-            sim(0, 11, isDown ? 1 : 0);
-            sim(0, 13, isDown ? 1 : 0);
-          }
         } catch (e) {}
       }
     }
@@ -241,16 +232,6 @@ class GamepadController {
 
     const eventType = isDown ? 'keydown' : 'keyup';
     const keysToSend = [def];
-
-    // Enviar teclas alternativas para L y R (Q / L y E / R)
-    if (name === 'l') {
-      keysToSend.push({ key: 'l', code: 'KeyL', keyCode: 76 });
-      keysToSend.push({ key: 'w', code: 'KeyW', keyCode: 87 });
-    }
-    if (name === 'r') {
-      keysToSend.push({ key: 'r', code: 'KeyR', keyCode: 82 });
-      keysToSend.push({ key: 'e', code: 'KeyE', keyCode: 69 });
-    }
 
     keysToSend.forEach(kDef => {
       const event = new KeyboardEvent(eventType, {
