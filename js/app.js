@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.6.2
+ * Versión: v0.6.3
  */
 
 class NDSEmulatorApp {
@@ -700,9 +700,24 @@ class NDSEmulatorApp {
     this.applyVideoFilter(this.videoFilter);
     this.applyTouchOpacity(this.touchOpacity);
 
-    // 7. Controles de Gameplay
-    const stopBtn = document.getElementById('btn-stop-game');
-    if (stopBtn) stopBtn.addEventListener('click', () => this.stopEmulation());
+    // 7. Controles de Gameplay (Reiniciar ROM y Salir)
+    const exitGameBtns = [
+      document.getElementById('btn-stop-game'),
+      document.getElementById('btn-settings-exit-game'),
+      document.getElementById('btn-header-exit-game')
+    ];
+    exitGameBtns.forEach(btn => {
+      if (btn) btn.addEventListener('click', () => this.exitGameToWelcome());
+    });
+
+    const restartRomBtns = [
+      document.getElementById('btn-restart-rom-bar'),
+      document.getElementById('btn-settings-restart-rom'),
+      document.getElementById('btn-header-restart-rom')
+    ];
+    restartRomBtns.forEach(btn => {
+      if (btn) btn.addEventListener('click', () => this.restartRom());
+    });
 
     const pauseBtn = document.getElementById('btn-pause-game');
     if (pauseBtn) pauseBtn.addEventListener('click', () => this.togglePause());
@@ -1382,13 +1397,125 @@ class NDSEmulatorApp {
   }
 
   /**
-   * Detiene la partida actual y regresa a la pantalla principal
+   * Sale del juego actual, respalda la partida en la Bóveda y regresa a la pantalla de bienvenida
+   */
+  async exitGameToWelcome() {
+    if (confirm('¿Deseas salir del juego y volver a la pantalla de bienvenida? Tu partida se respaldará automáticamente en la Bóveda.')) {
+      try {
+        await this.triggerSave(true);
+      } catch (e) {
+        console.warn('Error al respaldar partida antes de salir:', e);
+      }
+
+      // Detener audio y pausar núcleo
+      if (window.EJS_emulator) {
+        try {
+          if (typeof window.EJS_emulator.pause === 'function') window.EJS_emulator.pause();
+        } catch (e) {}
+      }
+
+      // Ocultar modal de ajustes si está abierto
+      this.toggleSettings(false);
+
+      // Limpiar contenedor del emulador y deshabilitar emulación
+      const container = document.getElementById('game-player');
+      if (container) container.innerHTML = '';
+
+      const emuContainer = document.getElementById('emulator-container');
+      if (emuContainer) emuContainer.style.display = 'none';
+
+      document.documentElement.classList.remove('is-emulating');
+      document.body.classList.remove('is-emulating');
+      const appElem = document.getElementById('app');
+      if (appElem) appElem.classList.remove('is-emulating');
+
+      const topHeader = document.querySelector('.top-header');
+      const bottomBar = document.querySelector('.bottom-bar');
+      if (topHeader) topHeader.style.removeProperty('display');
+      if (bottomBar) bottomBar.style.removeProperty('display');
+
+      if (window.touchControls) {
+        window.touchControls.hide();
+      }
+
+      const gameplayBar = document.getElementById('gameplay-bar');
+      if (gameplayBar) gameplayBar.style.display = 'none';
+
+      // Mostrar pantalla de bienvenida
+      const welcomeScreen = document.getElementById('welcome-screen');
+      if (welcomeScreen) welcomeScreen.style.display = 'flex';
+
+      window.EJS_emulator = null;
+      this.isEmulating = false;
+      this.isPaused = false;
+
+      // Actualizar biblioteca de juegos recientes
+      this.renderRecentRoms();
+
+      if (window.saveManager) {
+        window.saveManager.showToast('🏠 Has vuelto a la pantalla de bienvenida.', 'info');
+      }
+    }
+  }
+
+  /**
+   * Alias de compatibilidad para detener emulación
    */
   stopEmulation() {
-    if (confirm('¿Deseas salir al menú principal? Tu partida se respaldará automáticamente en la Bóveda.')) {
-      this.triggerSave(true).then(() => {
+    return this.exitGameToWelcome();
+  }
+
+  /**
+   * Reinicia la ROM actual desde el principio guardando el progreso previo
+   */
+  async restartRom() {
+    if (confirm('¿Deseas reiniciar la ROM actual? El juego se recargará desde el principio.')) {
+      try {
+        await this.triggerSave(true);
+      } catch (e) {
+        console.warn('Error al respaldar partida antes de reiniciar:', e);
+      }
+
+      this.toggleSettings(false);
+
+      if (window.saveManager) {
+        window.saveManager.showToast('🔄 Reiniciando juego...', 'info');
+      }
+
+      // 1. Intentar método de reinicio directo de EmulatorJS
+      if (window.EJS_emulator) {
+        const gm = window.EJS_emulator.gameManager;
+        if (gm && typeof gm.restart === 'function') {
+          try {
+            gm.restart();
+            if (window.saveManager) window.saveManager.showToast('🎮 Juego reiniciado con éxito.', 'success');
+            return;
+          } catch (e) {
+            console.warn('Error en gm.restart():', e);
+          }
+        }
+        if (typeof window.EJS_emulator.restart === 'function') {
+          try {
+            window.EJS_emulator.restart();
+            if (window.saveManager) window.saveManager.showToast('🎮 Juego reiniciado con éxito.', 'success');
+            return;
+          } catch (e) {
+            console.warn('Error en EJS_emulator.restart():', e);
+          }
+        }
+      }
+
+      // 2. Si no hay método nativo o falló, recargar con el blob de la ROM en memoria
+      if (this.currentRomBlob && this.currentRomName) {
+        const blob = this.currentRomBlob;
+        const name = this.currentRomName;
+        const container = document.getElementById('game-player');
+        if (container) container.innerHTML = '';
+        window.EJS_emulator = null;
+        await this.startEmulator(blob, name);
+      } else {
         location.reload();
-      });
+      }
     }
   }
 
@@ -1947,7 +2074,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.6.2') {
+              if (key !== 'nds-emulator-v0.6.3') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1955,7 +2082,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.6.2').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.6.3').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
