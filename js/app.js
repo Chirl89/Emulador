@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.6.3
+ * Versión: v0.7.0
  */
 
 class NDSEmulatorApp {
@@ -1240,7 +1240,9 @@ class NDSEmulatorApp {
     window.EJS_disableAutoLang = false;
     window.EJS_language = "en-US";
     window.EJS_backgroundColor = '#000000';
+    window.EJS_threads = true;
     
+    const frameskipVal = (this.frameskip === 'auto') ? '0' : this.frameskip.toString();
     window.EJS_defaultOptions = {
       "notification_show_fast_forward": "false",
       "video_font_enable": "false",
@@ -1257,12 +1259,14 @@ class NDSEmulatorApp {
       "desmume_opengl_mode": "disabled",
       "desmume_spu_interpolation": "linear",
       "desmume_cpu_mode": "jit",
-      "desmume_frameskip": "0",
+      "desmume_frameskip": frameskipVal,
+      "desmume_frameskip_type": (this.frameskip === 'auto') ? 'auto' : 'fixed',
       "melonds_touch_mode": "touch",
       "melonds_screen_layout": isVertical ? "Top/Bottom" : "Horizontal",
       "melonds_screens_layout": isVertical ? "top/bottom" : "left/right",
       "melonds_threaded_renderer": "enabled",
       "melonds_jit_enable": "enabled",
+      "melonds_frameskip": frameskipVal,
       "melonds_audio_interpolation": "none"
     };
 
@@ -2074,7 +2078,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.6.3') {
+              if (key !== 'nds-emulator-v0.7.0') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2082,7 +2086,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.6.3').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.7.0').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
