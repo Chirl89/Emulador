@@ -14,10 +14,10 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e60012'/><rect x='15' y='18' width='70' height='30' rx='5' fill='%23111'/><rect x='15' y='52' width='70' height='30' rx='5' fill='%23111'/><circle cx='30' cy='33' r='4' fill='%2300f0ff'/><circle cx='70' cy='67' r='4' fill='%23ff0055'/></svg>">
 
   <!-- Estilos con cache-busting -->
-  <link rel="stylesheet" href="css/style.css?v=0.7.4">
-  <link rel="stylesheet" href="css/touch-controls.css?v=0.7.4">
+  <link rel="stylesheet" href="css/style.css?v=0.7.5">
+  <link rel="stylesheet" href="css/touch-controls.css?v=0.7.5">
 
-  <!-- Escudo indestructible contra controles virtuales, barra inferior, menús contextuales y capturas de EmulatorJS -->
+  <!-- Escudo indestructible contra controles virtuales, notificaciones, fast-forward, barra inferior y menús de EmulatorJS -->
   <style id="ejs-override-shield">
     .ejs_cheat_parent,
     .ejs_netplay_parent,
@@ -36,6 +36,18 @@
     .ejs_settings_parent,
     .ejs_cues,
     .ejs_cue,
+    .ejs_notification,
+    .ejs_notifications,
+    .ejs_notification_parent,
+    .ejs_notification_text,
+    .ejs_fastforward,
+    .ejs_fast_forward,
+    .ejs_ff,
+    .ejs_speed,
+    .ejs_speed_indicator,
+    .ejs_fps,
+    .ejs_fps_parent,
+    .ejs_fps_counter,
     .ejs_screen_capture,
     .ejs_watermark,
     .ejs_virtualGamepad,
@@ -45,7 +57,15 @@
     .ejs_virtualGamepad_button,
     .ejs_virtualGamepad_left,
     .ejs_virtualGamepad_right,
-    .ejs_virtualGamepad_dpad {
+    .ejs_virtualGamepad_dpad,
+    [class*="ejs_cue"],
+    [class*="ejs_notification"],
+    [class*="ejs_fast"],
+    [class*="ejs_speed"],
+    [class*="ejs_fps"],
+    [class*="ejs_watermark"],
+    [class*="ejs_virtualGamepad"],
+    [class*="ejs_menu"] {
       display: none !important;
       opacity: 0 !important;
       pointer-events: none !important;
@@ -59,6 +79,19 @@
       left: -9999px !important;
       z-index: -9999 !important;
     }
+
+    /* Ocultar cualquier elemento hijo no-canvas en el reproductor del juego */
+    #game-player > *:not(canvas):not(.ejs_parent):not(.ejs_canvas_parent),
+    .ejs_parent > *:not(canvas):not(.ejs_canvas_parent),
+    .ejs_canvas_parent > *:not(canvas) {
+      display: none !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+      height: 0 !important;
+      width: 0 !important;
+      max-height: 0 !important;
+    }
   </style>
 </head>
 <body>
@@ -70,7 +103,7 @@
         <div class="logo-badge">NDS</div>
         <div class="title-group">
           <h1>NDS Web Emulator</h1>
-          <span class="version-badge" id="app-version">v0.7.4</span>
+          <span class="version-badge" id="app-version">v0.7.5</span>
         </div>
       </div>
 
@@ -562,7 +595,7 @@
               <button class="btn btn-secondary btn-sm" id="btn-force-git-refresh" style="border-color: var(--color-primary); color: var(--color-primary);">
                 🔄 Refrescar desde GitHub
               </button>
-              <span style="font-size: 11px; color: var(--text-muted);">Versión: <strong>v0.7.4</strong></span>
+              <span style="font-size: 11px; color: var(--text-muted);">Versión: <strong>v0.7.5</strong></span>
             </div>
           </div>
         </div>
@@ -579,7 +612,7 @@
         <div class="modal-header">
           <div class="vault-modal-title-group">
             <h3>🛡️ Bóveda de Partidas Time-Machine</h3>
-            <span class="vault-badge-version">v0.7.4</span>
+            <span class="vault-badge-version">v0.7.5</span>
           </div>
           <button class="btn-close" id="btn-close-vault">&times;</button>
         </div>
@@ -675,11 +708,11 @@
   <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.4.3.min.js"></script>
 
   <!-- Scripts del Emulador con cache-busting -->
-  <script src="js/cloud-save-manager.js?v=0.7.4"></script>
-  <script src="js/save-manager.js?v=0.7.4"></script>
-  <script src="js/gamepad.js?v=0.7.4"></script>
-  <script src="js/touch-controls.js?v=0.7.4"></script>
-  <script src="js/app.js?v=0.7.4"></script>
+  <script src="js/cloud-save-manager.js?v=0.7.5"></script>
+  <script src="js/save-manager.js?v=0.7.5"></script>
+  <script src="js/gamepad.js?v=0.7.5"></script>
+  <script src="js/touch-controls.js?v=0.7.5"></script>
+  <script src="js/app.js?v=0.7.5"></script>
 </body>
 </html>
 

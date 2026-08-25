@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.7.4
+ * Versión: v0.7.5
  */
 
 class NDSEmulatorApp {
@@ -103,13 +103,36 @@ class NDSEmulatorApp {
       const intrusive = document.querySelectorAll(
         '.ejs_cheat_parent, .ejs_netplay_parent, .ejs_menu_bar, .ejs_menu_bar_hidden, ' +
         '.ejs_menu_button, .ejs_menu_text, .ejs_volume_parent, .ejs_side_menu, .ejs_modal, ' +
-        '.ejs_backdrop, .ejs_settings_parent, .ejs_cues, .ejs_cue, .ejs_screen_capture, ' +
-        '.ejs_watermark, .ejs_virtualGamepad, .ejs_virtualGamepad_parent, .ejs_virtualGamepad_open, .ejs_dpad_main'
+        '.ejs_backdrop, .ejs_settings, .ejs_settings_parent, .ejs_cues, .ejs_cue, .ejs_notification, ' +
+        '.ejs_notifications, .ejs_notification_parent, .ejs_notification_text, .ejs_fastforward, ' +
+        '.ejs_fast_forward, .ejs_ff, .ejs_speed, .ejs_speed_indicator, .ejs_fps, .ejs_fps_parent, ' +
+        '.ejs_fps_counter, .ejs_screen_capture, .ejs_watermark, .ejs_virtualGamepad, ' +
+        '.ejs_virtualGamepad_parent, .ejs_virtualGamepad_open, .ejs_dpad_main, ' +
+        '[class*="ejs_cue"], [class*="ejs_notification"], [class*="ejs_fast"], [class*="ejs_speed"]'
       );
       intrusive.forEach(el => el.remove());
 
+      // Eliminar cualquier elemento textual intrusivo que contenga 'Fast-Forward' o 'Fast Forward'
+      document.querySelectorAll('#game-player div, #game-player span, #game-player p, .ejs_parent div, .ejs_parent span').forEach(el => {
+        if (el.tagName !== 'CANVAS' && !el.classList.contains('ejs_parent') && !el.classList.contains('ejs_canvas_parent')) {
+          const txt = (el.textContent || '').trim();
+          if (txt.includes('Fast-Forward') || txt.includes('Fast Forward') || txt.includes('Fast-forward') || txt.includes('Fast forward')) {
+            el.remove();
+          }
+        }
+      });
+
       if (window.EJS_emulator) {
         try {
+          if (typeof window.EJS_emulator.displayNotification === 'function') {
+            window.EJS_emulator.displayNotification = () => {};
+          }
+          if (typeof window.EJS_emulator.showNotification === 'function') {
+            window.EJS_emulator.showNotification = () => {};
+          }
+          if (typeof window.EJS_emulator.showCue === 'function') {
+            window.EJS_emulator.showCue = () => {};
+          }
           if (typeof window.EJS_emulator.toggleVirtualGamepad === 'function') {
             window.EJS_emulator.toggleVirtualGamepad(false);
           }
@@ -313,6 +336,19 @@ class NDSEmulatorApp {
         console.warn('Error aplicando aceleración en GameManager:', e);
       }
     }
+
+    // Purgar inmediatamente cualquier overlay generado por EmulatorJS
+    setTimeout(() => {
+      document.querySelectorAll('.ejs_cue, .ejs_cues, .ejs_notification, .ejs_notifications, .ejs_fastforward, .ejs_fast_forward, [class*="ejs_cue"], [class*="ejs_notification"]').forEach(el => el.remove());
+      document.querySelectorAll('#game-player div, #game-player span, #game-player p').forEach(el => {
+        if (el.tagName !== 'CANVAS' && !el.classList.contains('ejs_parent') && !el.classList.contains('ejs_canvas_parent')) {
+          const txt = (el.textContent || '').trim();
+          if (txt.includes('Fast-Forward') || txt.includes('Fast Forward') || txt.includes('Fast-forward') || txt.includes('Fast forward')) {
+            el.remove();
+          }
+        }
+      });
+    }, 10);
   }
 
   initUI() {
@@ -2082,7 +2118,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.7.4') {
+              if (key !== 'nds-emulator-v0.7.5') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2090,7 +2126,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.7.4').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.7.5').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

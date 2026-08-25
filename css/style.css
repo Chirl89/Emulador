@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - ROG Ally & Safari Edition
-   Estilos Principales v0.7.4
+   Estilos Principales v0.7.5
    ========================================================================== */
 
 :root {
@@ -736,6 +736,18 @@ canvas {
 .ejs_context_menu,
 .ejs_cues,
 .ejs_cue,
+.ejs_notification,
+.ejs_notifications,
+.ejs_notification_parent,
+.ejs_notification_text,
+.ejs_fastforward,
+.ejs_fast_forward,
+.ejs_ff,
+.ejs_speed,
+.ejs_speed_indicator,
+.ejs_fps,
+.ejs_fps_parent,
+.ejs_fps_counter,
 .ejs_screen_capture,
 .ejs_watermark,
 .ejs_virtualGamepad,
@@ -745,7 +757,15 @@ canvas {
 .ejs_virtualGamepad_button,
 .ejs_virtualGamepad_left,
 .ejs_virtualGamepad_right,
-.ejs_virtualGamepad_dpad {
+.ejs_virtualGamepad_dpad,
+[class*="ejs_cue"],
+[class*="ejs_notification"],
+[class*="ejs_fast"],
+[class*="ejs_speed"],
+[class*="ejs_fps"],
+[class*="ejs_watermark"],
+[class*="ejs_virtualGamepad"],
+[class*="ejs_menu"] {
   display: none !important;
   opacity: 0 !important;
   pointer-events: none !important;
@@ -758,6 +778,19 @@ canvas {
   top: -9999px !important;
   left: -9999px !important;
   z-index: -9999 !important;
+}
+
+/* Ocultar cualquier elemento hijo no-canvas en el reproductor del juego */
+#game-player > *:not(canvas):not(.ejs_parent):not(.ejs_canvas_parent),
+.ejs_parent > *:not(canvas):not(.ejs_canvas_parent),
+.ejs_canvas_parent > *:not(canvas) {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  max-height: 0 !important;
 }
 
 .game-player iframe,
