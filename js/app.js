@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.7.5
+ * Versión: v0.7.6
  */
 
 class NDSEmulatorApp {
@@ -1277,9 +1277,20 @@ class NDSEmulatorApp {
     window.EJS_language = "en-US";
     window.EJS_backgroundColor = '#000000';
     
+    window.EJS_retroarchOpts = [
+      { name: "video_font_enable", default: "false", isString: false },
+      { name: "notification_show_fast_forward", default: "false", isString: false },
+      { name: "fps_show", default: "false", isString: false },
+      { name: "video_msg_bgcolor_opacity", default: "0.0", isString: false },
+      { name: "video_font_size", default: "0", isString: false }
+    ];
+
     window.EJS_defaultOptions = {
       "notification_show_fast_forward": "false",
       "video_font_enable": "false",
+      "fps_show": "false",
+      "video_font_size": "0",
+      "video_msg_bgcolor_opacity": "0.0",
       "desmume_screens_layout": isVertical ? "top/bottom" : "left/right",
       "desmume_pointer_type": "touch",
       "desmume_pointer_device": "touch",
@@ -1310,7 +1321,9 @@ class NDSEmulatorApp {
       audio_latency: 128,
       video_vsync: true,
       video_smooth: (this.videoFilter === 'smooth'),
-      video_threaded: true
+      video_threaded: true,
+      video_font_enable: false,
+      notification_show_fast_forward: false
     };
 
     // Callback de Guardado dentro del juego (ej. Guardar en Pokémon)
@@ -1355,6 +1368,19 @@ class NDSEmulatorApp {
             if (els.modal) els.modal.remove();
             if (els.backdrop) els.backdrop.remove();
             if (els.bottomBar && els.bottomBar.parent) els.bottomBar.parent.remove();
+          }
+        } catch (e) {}
+      }
+
+      // Asegurar supresión absoluta de OSD / Fast-Forward en el sistema de archivos de RetroArch
+      if (window.EJS_emulator?.gameManager?.FS) {
+        try {
+          const fs = window.EJS_emulator.gameManager.FS;
+          const cfgPath = "/home/web_user/.config/retroarch/retroarch.cfg";
+          if (fs.analyzePath(cfgPath).exists) {
+            let currentCfg = fs.readFile(cfgPath, { encoding: 'utf8' });
+            currentCfg += "\nvideo_font_enable = \"false\"\nnotification_show_fast_forward = \"false\"\nfps_show = \"false\"\nvideo_font_size = \"0\"\nvideo_msg_bgcolor_opacity = \"0.0\"\n";
+            fs.writeFile(cfgPath, currentCfg);
           }
         } catch (e) {}
       }
@@ -2118,7 +2144,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.7.5') {
+              if (key !== 'nds-emulator-v0.7.6') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2126,7 +2152,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.7.5').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.7.6').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
