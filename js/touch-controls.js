@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Touch Controls
  * Controles virtuales en pantalla para Safari iOS / ROG Ally / Pantalla Táctil
- * Versión: v0.6.1
+ * Versión: v0.6.2
  */
 
 class TouchControls {

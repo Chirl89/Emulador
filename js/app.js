@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.6.1
+ * Versión: v0.6.2
  */
 
 class NDSEmulatorApp {
@@ -1226,14 +1226,10 @@ class NDSEmulatorApp {
     window.EJS_language = "en-US";
     window.EJS_backgroundColor = '#000000';
     
-    const isIOSDevice = this.deviceInfo.isIOS || this.deviceInfo.isIPhone || this.deviceInfo.isIPad;
-
     window.EJS_defaultOptions = {
       "notification_show_fast_forward": "false",
       "video_font_enable": "false",
       "desmume_screens_layout": isVertical ? "top/bottom" : "left/right",
-      "desmume_hybrid_layout_scale": "1",
-      "desmume_screens_gap": "0",
       "desmume_pointer_type": "touch",
       "desmume_pointer_device": "touch",
       "desmume_pointer_device_l": "touch",
@@ -1244,21 +1240,15 @@ class NDSEmulatorApp {
       "desmume_advanced_timing": "disabled",
       "desmume_internal_resolution": "256x192",
       "desmume_opengl_mode": "disabled",
-      "desmume_spu_interpolation": "none",
+      "desmume_spu_interpolation": "linear",
       "desmume_cpu_mode": "jit",
-      "desmume_frameskip": this.frameskip.toString(),
-      "desmume_gfx_edging": "disabled",
-      "desmume_gfx_texture_deposterize": "disabled",
-      "desmume_gfx_texture_smoothing": "disabled",
-      "desmume_num_cores": "2",
-      "desmume_color_depth": "16-bit",
+      "desmume_frameskip": "0",
       "melonds_touch_mode": "touch",
       "melonds_screen_layout": isVertical ? "Top/Bottom" : "Horizontal",
       "melonds_screens_layout": isVertical ? "top/bottom" : "left/right",
       "melonds_threaded_renderer": "enabled",
       "melonds_jit_enable": "enabled",
-      "melonds_audio_interpolation": "none",
-      "melonds_frameskip": this.frameskip.toString()
+      "melonds_audio_interpolation": "none"
     };
 
     window.EJS_VirtualGamepadSettings = { disabled: true };
@@ -1266,7 +1256,7 @@ class NDSEmulatorApp {
     window.EJS_Settings = {
       default_controls: true,
       volume: this.audioMuted ? 0.0 : this.audioVolume,
-      audio_latency: isIOSDevice ? 384 : 128,
+      audio_latency: 128,
       video_vsync: true,
       video_smooth: (this.videoFilter === 'smooth'),
       video_threaded: true
@@ -1542,13 +1532,6 @@ class NDSEmulatorApp {
       const isHorizontal = (this.currentLayout === 'layout-horizontal');
       gm.setVariable('desmume_screens_layout', isHorizontal ? 'left/right' : 'top/bottom');
       gm.setVariable('melonds_screen_layout', isHorizontal ? 'Horizontal' : 'Top/Bottom');
-
-      // Fijar parámetros estables sin conmutaciones indeseadas
-      gm.setVariable('desmume_hybrid_layout_scale', '1');
-      gm.setVariable('desmume_screens_gap', '0');
-      gm.setVariable('desmume_spu_interpolation', 'none');
-      gm.setVariable('desmume_frameskip', this.frameskip.toString());
-      gm.setVariable('melonds_frameskip', this.frameskip.toString());
     } catch (e) {
       console.warn('Error configurando variables de núcleo:', e);
     }
@@ -1964,7 +1947,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.6.1') {
+              if (key !== 'nds-emulator-v0.6.2') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -1972,7 +1955,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.6.1').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.6.2').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
