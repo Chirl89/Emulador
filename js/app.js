@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.7.7
+ * Versión: v0.7.8
  */
 
 class NDSEmulatorApp {
@@ -33,13 +33,17 @@ class NDSEmulatorApp {
     this.touchOpacity = localStorage.getItem('nds_touch_opacity') !== null ? parseFloat(localStorage.getItem('nds_touch_opacity')) : 0.95;
     this.touchVisibilityMode = localStorage.getItem('nds_touch_mode') || 'auto';
 
-    // Desactivación permanente de OSD / Mensajes de Fast-Forward de RetroArch en memoria y almacenamiento local
+    // Desactivación permanente de OSD / Mensajes y Widgets de Fast-Forward de RetroArch en memoria y almacenamiento local
     try {
+      localStorage.setItem('ejs_menu_enable_widgets', 'false');
+      localStorage.setItem('ejs_menu_widget_scale_auto', 'false');
       localStorage.setItem('ejs_notification_show_fast_forward', 'false');
       localStorage.setItem('ejs_video_font_enable', 'false');
       localStorage.setItem('ejs_fps_show', 'false');
       localStorage.setItem('ejs_video_font_size', '0');
       localStorage.setItem('ejs_video_msg_bgcolor_opacity', '0.0');
+      localStorage.setItem('ejs_nds_menu_enable_widgets', 'false');
+      localStorage.setItem('ejs_nds_menu_widget_scale_auto', 'false');
       localStorage.setItem('ejs_nds_notification_show_fast_forward', 'false');
       localStorage.setItem('ejs_nds_video_font_enable', 'false');
       localStorage.setItem('ejs_nds_fps_show', 'false');
@@ -336,6 +340,7 @@ class NDSEmulatorApp {
     if (gm) {
       try {
         if (typeof gm.functions?.setVariable === 'function') {
+          gm.functions.setVariable("menu_enable_widgets", "false");
           gm.functions.setVariable("notification_show_fast_forward", "false");
           gm.functions.setVariable("video_font_enable", "false");
           gm.functions.setVariable("fps_show", "false");
@@ -1298,6 +1303,8 @@ class NDSEmulatorApp {
     window.EJS_backgroundColor = '#000000';
     
     window.EJS_retroarchOpts = [
+      { name: "menu_enable_widgets", default: "false", isString: false },
+      { name: "menu_widget_scale_auto", default: "false", isString: false },
       { name: "video_font_enable", default: "false", isString: false },
       { name: "notification_show_fast_forward", default: "false", isString: false },
       { name: "fps_show", default: "false", isString: false },
@@ -1306,6 +1313,8 @@ class NDSEmulatorApp {
     ];
 
     window.EJS_defaultOptions = {
+      "menu_enable_widgets": "false",
+      "menu_widget_scale_auto": "false",
       "notification_show_fast_forward": "false",
       "video_font_enable": "false",
       "fps_show": "false",
@@ -1343,7 +1352,8 @@ class NDSEmulatorApp {
       video_smooth: (this.videoFilter === 'smooth'),
       video_threaded: true,
       video_font_enable: false,
-      notification_show_fast_forward: false
+      notification_show_fast_forward: false,
+      menu_enable_widgets: false
     };
 
     // Hook de inicialización para inyectar supresión nativa de OSD en el emulador
@@ -1351,6 +1361,8 @@ class NDSEmulatorApp {
       if (window.EJS_emulator) {
         window.EJS_emulator.retroarchOpts = window.EJS_emulator.retroarchOpts || [];
         window.EJS_emulator.retroarchOpts.push(
+          { name: "menu_enable_widgets", default: "false", isString: false },
+          { name: "menu_widget_scale_auto", default: "false", isString: false },
           { name: "video_font_enable", default: "false", isString: false },
           { name: "notification_show_fast_forward", default: "false", isString: false },
           { name: "fps_show", default: "false", isString: false },
@@ -1413,7 +1425,7 @@ class NDSEmulatorApp {
           const cfgPath = "/home/web_user/.config/retroarch/retroarch.cfg";
           if (fs.analyzePath(cfgPath).exists) {
             let currentCfg = fs.readFile(cfgPath, { encoding: 'utf8' });
-            currentCfg += "\nvideo_font_enable = \"false\"\nnotification_show_fast_forward = \"false\"\nfps_show = \"false\"\nvideo_font_size = \"0\"\nvideo_msg_bgcolor_opacity = \"0.0\"\n";
+            currentCfg += "\nmenu_enable_widgets = \"false\"\nmenu_widget_scale_auto = \"false\"\nvideo_font_enable = \"false\"\nnotification_show_fast_forward = \"false\"\nfps_show = \"false\"\nvideo_font_size = \"0\"\nvideo_msg_bgcolor_opacity = \"0.0\"\n";
             fs.writeFile(cfgPath, currentCfg);
           }
         } catch (e) {}
@@ -2178,7 +2190,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.7.7') {
+              if (key !== 'nds-emulator-v0.7.8') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2186,7 +2198,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.7.7').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.7.8').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
