@@ -1,10 +1,10 @@
 /**
  * NDS Web Emulator - Service Worker
  * Caché offline inteligente (Network-First) para Safari iOS y GitHub Pages
- * Versión: v0.7.1
+ * Versión: v0.7.2
  */
 
-const CACHE_NAME = 'nds-emulator-v0.7.1';
+const CACHE_NAME = 'nds-emulator-v0.7.2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -20,7 +20,7 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (e) => {
-  console.log('[Service Worker] Instalando v0.7.1...');
+  console.log('[Service Worker] Instalando v0.7.2...');
   self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -30,7 +30,7 @@ self.addEventListener('install', (e) => {
 });
 
 self.addEventListener('activate', (e) => {
-  console.log('[Service Worker] Activando v0.7.1 y purgando cachés obsoletas...');
+  console.log('[Service Worker] Activando v0.7.2 y purgando cachés obsoletas...');
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(
