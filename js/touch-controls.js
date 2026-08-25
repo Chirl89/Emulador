@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Touch Controls
  * Controles virtuales en pantalla para Safari iOS / ROG Ally / Pantalla Táctil
- * Versión: v0.7.0
+ * Versión: v0.7.1
  */
 
 class TouchControls {
@@ -110,36 +110,53 @@ class TouchControls {
 
   onGameStart() {
     this.cachedCanvas = null;
-    const isPureMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isPureMobile && !this.gamepadConnected && this.userPreference !== 'hide') {
+    const ua = navigator.userAgent || '';
+    const isPureMobile = (/iPhone|iPad|iPod|Android/i.test(ua)) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isHorizontal = (window.app?.currentLayout === 'layout-horizontal');
+
+    if (this.userPreference === 'show') {
       this.show();
-    } else if (this.userPreference === 'show') {
+    } else if (this.userPreference === 'hide') {
+      this.hide();
+    } else if (isPureMobile && !this.gamepadConnected && !isHorizontal) {
+      // En Safari iOS / iPhone / iPad en vertical sin mando: mostrar controles táctiles intactos
       this.show();
-    } else if (!this.gamepadConnected) {
-      this.show();
+    } else {
+      // En Asus ROG Ally, PC Desktop, modo horizontal o con mando conectado: ocultar controles táctiles para pantalla 100% gigante
+      this.hide();
     }
   }
 
   show() {
-    if (this.overlay && (document.body.classList.contains('is-emulating') || window.app?.isEmulating)) {
-      this.overlay.style.display = 'flex';
+    if (this.overlay) {
+      this.overlay.style.setProperty('display', 'flex', 'important');
       this.visible = true;
+      document.documentElement.classList.add('touch-controls-visible');
+      document.documentElement.classList.remove('touch-controls-hidden');
+      document.body.classList.add('touch-controls-visible');
+      document.body.classList.remove('touch-controls-hidden');
     }
   }
 
   hide() {
     if (this.overlay) {
-      this.overlay.style.display = 'none';
+      this.overlay.style.setProperty('display', 'none', 'important');
       this.visible = false;
+      document.documentElement.classList.remove('touch-controls-visible');
+      document.documentElement.classList.add('touch-controls-hidden');
+      document.body.classList.remove('touch-controls-visible');
+      document.body.classList.add('touch-controls-hidden');
     }
   }
 
   toggle() {
     if (this.visible) {
       this.userPreference = 'hide';
+      localStorage.setItem('nds_touch_mode', 'hide');
       this.hide();
     } else {
       this.userPreference = 'show';
+      localStorage.setItem('nds_touch_mode', 'show');
       this.show();
     }
     return this.visible;
@@ -147,11 +164,17 @@ class TouchControls {
 
   onGamepadConnected() {
     this.gamepadConnected = true;
+    if (this.userPreference !== 'show') {
+      this.hide();
+    }
   }
 
   onGamepadDisconnected() {
     this.gamepadConnected = false;
-    if (window.app?.isEmulating) {
+    const ua = navigator.userAgent || '';
+    const isPureMobile = (/iPhone|iPad|iPod|Android/i.test(ua)) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isHorizontal = (window.app?.currentLayout === 'layout-horizontal');
+    if (isPureMobile && !isHorizontal && this.userPreference !== 'hide' && window.app?.isEmulating) {
       this.show();
     }
   }
