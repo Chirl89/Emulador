@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.7.6
+ * Versión: v0.7.7
  */
 
 class NDSEmulatorApp {
@@ -32,6 +32,20 @@ class NDSEmulatorApp {
     // Configuración de controles táctiles
     this.touchOpacity = localStorage.getItem('nds_touch_opacity') !== null ? parseFloat(localStorage.getItem('nds_touch_opacity')) : 0.95;
     this.touchVisibilityMode = localStorage.getItem('nds_touch_mode') || 'auto';
+
+    // Desactivación permanente de OSD / Mensajes de Fast-Forward de RetroArch en memoria y almacenamiento local
+    try {
+      localStorage.setItem('ejs_notification_show_fast_forward', 'false');
+      localStorage.setItem('ejs_video_font_enable', 'false');
+      localStorage.setItem('ejs_fps_show', 'false');
+      localStorage.setItem('ejs_video_font_size', '0');
+      localStorage.setItem('ejs_video_msg_bgcolor_opacity', '0.0');
+      localStorage.setItem('ejs_nds_notification_show_fast_forward', 'false');
+      localStorage.setItem('ejs_nds_video_font_enable', 'false');
+      localStorage.setItem('ejs_nds_fps_show', 'false');
+      localStorage.setItem('ejs_nds_video_font_size', '0');
+      localStorage.setItem('ejs_nds_video_msg_bgcolor_opacity', '0.0');
+    } catch (e) {}
 
     this.layouts = [
       { id: 'layout-horizontal', name: 'Horizontal (ROG Ally / 16:9)' },
@@ -321,6 +335,12 @@ class NDSEmulatorApp {
     const gm = window.EJS_emulator?.gameManager;
     if (gm) {
       try {
+        if (typeof gm.functions?.setVariable === 'function') {
+          gm.functions.setVariable("notification_show_fast_forward", "false");
+          gm.functions.setVariable("video_font_enable", "false");
+          gm.functions.setVariable("fps_show", "false");
+        }
+
         if (typeof gm.setFastForwardRatio === 'function') {
           gm.setFastForwardRatio(ratio);
         } else if (typeof gm.functions?.setFastForwardRatio === 'function') {
@@ -1326,6 +1346,20 @@ class NDSEmulatorApp {
       notification_show_fast_forward: false
     };
 
+    // Hook de inicialización para inyectar supresión nativa de OSD en el emulador
+    window.EJS_ready = () => {
+      if (window.EJS_emulator) {
+        window.EJS_emulator.retroarchOpts = window.EJS_emulator.retroarchOpts || [];
+        window.EJS_emulator.retroarchOpts.push(
+          { name: "video_font_enable", default: "false", isString: false },
+          { name: "notification_show_fast_forward", default: "false", isString: false },
+          { name: "fps_show", default: "false", isString: false },
+          { name: "video_font_size", default: "0", isString: false },
+          { name: "video_msg_bgcolor_opacity", default: "0.0", isString: false }
+        );
+      }
+    };
+
     // Callback de Guardado dentro del juego (ej. Guardar en Pokémon)
     window.EJS_onSaveSave = (data) => {
       console.log('Evento saveSave detectado: guardando SRAM con protección acorazada...');
@@ -2144,7 +2178,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.7.6') {
+              if (key !== 'nds-emulator-v0.7.7') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2152,7 +2186,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.7.6').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.7.7').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
