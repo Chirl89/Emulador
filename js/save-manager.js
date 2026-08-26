@@ -1,8 +1,8 @@
 /**
  * NDS Web Emulator - Save Manager
- * Gestor de persistencia directa: 1 único save local (.sav) y 1 respaldo en la nube
- * Elimina versiones antiguas, historiales y conflictos de sobreescritura
- * Versión: v0.9.0
+ * Gestor de persistencia directa: 1 único save local (.sav) con prioridad 1 y respaldo en la nube
+ * Comparación exacta por marca de tiempo (timestamp) y purga obligatoria de saves sin fecha
+ * Versión: v0.9.1
  */
 
 class SaveManager {
@@ -91,8 +91,8 @@ class SaveManager {
   }
 
   /**
-   * Purga definitiva de partidas antiguas, versiones históricas y claves duplicadas
-   * Deja EXACTAMENTE un único guardado principal por juego (.sav)
+   * Purga definitiva de partidas antiguas, versiones históricas y partidas SIN marca de tiempo
+   * Deja EXACTAMENTE un único guardado principal por juego (.sav) con timestamp válido
    */
   async purgeOldLegacySaves() {
     if (!this.db) return;
@@ -106,7 +106,7 @@ class SaveManager {
         } catch (e) {}
       }
 
-      // 2. Limpiar claves duplicadas/antiguas en 'saves'
+      // 2. Limpiar claves duplicadas/antiguas y partidas sin marca de tiempo en 'saves'
       const tx = this.db.transaction('saves', 'readwrite');
       const store = tx.objectStore('saves');
 
@@ -127,19 +127,23 @@ class SaveManager {
       for (const rec of allRecords) {
         if (!rec || !rec.name) continue;
         const name = rec.name;
+        const ts = Number(rec.timestamp);
 
-        // Eliminar claves genéricas o snapshots antiguos
-        if (legacyKeysToDelete.includes(name) ||
-            name.startsWith('last_known_good_') ||
-            name.startsWith('backup_') ||
-            name.endsWith('.srm') ||
-            name.endsWith('.dsv')) {
+        const isLegacyKey = legacyKeysToDelete.includes(name) ||
+                            name.startsWith('last_known_good_') ||
+                            name.startsWith('backup_') ||
+                            name.endsWith('.srm') ||
+                            name.endsWith('.dsv');
+        const isMissingTimestamp = !ts || isNaN(ts) || ts <= 0;
+        const isInvalidData = !rec.data || rec.data.byteLength < 512 || !this.isValidSaveBuffer(rec.data);
+
+        if (isLegacyKey || isMissingTimestamp || isInvalidData) {
           store.delete(name);
-          console.log(`🧹 [Limpieza] Clave antigua eliminada: ${name}`);
+          console.log(`🧹 [Limpieza Local] Guardado purgado (${isLegacyKey ? 'clave obsoleta' : (isMissingTimestamp ? 'sin marca de tiempo' : 'datos inválidos')}): ${name}`);
         }
       }
 
-      console.log('🧹 [Limpieza] Base de datos saneada: Solo se conservan saves .sav únicos.');
+      console.log('🧹 [Limpieza Local] Base de datos saneada: Solo se conservan saves únicos con marca de tiempo.');
     } catch (err) {
       console.warn('Error en purgeOldLegacySaves:', err);
     }
@@ -192,12 +196,14 @@ class SaveManager {
   }
 
   /**
-   * Guarda directamente en IndexedDB (Único guardado local por juego)
+   * Guarda directamente en IndexedDB con marca de tiempo obligatoria
    */
   async saveToIndexedDB(name, data, timestamp = null) {
     if (!this.db || !data) return false;
     const uint8 = data instanceof Uint8Array ? data : (data instanceof ArrayBuffer ? new Uint8Array(data) : null);
     if (!uint8 || uint8.byteLength === 0) return false;
+
+    const finalTimestamp = (typeof timestamp === 'number' && !isNaN(timestamp) && timestamp > 0) ? timestamp : Date.now();
 
     return new Promise((resolve) => {
       try {
@@ -207,7 +213,7 @@ class SaveManager {
           data: uint8,
           size: uint8.byteLength,
           hash: this.computeHash(uint8),
-          timestamp: Number(timestamp) || Date.now()
+          timestamp: finalTimestamp
         });
         tx.oncomplete = () => resolve(true);
         tx.onerror = (e) => {
@@ -246,7 +252,7 @@ class SaveManager {
   }
 
   /**
-   * Obtiene el registro completo de la partida local
+   * Obtiene el registro completo de la partida local (con timestamp y hash)
    */
   async getLocalSaveRecord(romName) {
     if (!this.db) return null;
@@ -272,7 +278,7 @@ class SaveManager {
   }
 
   /**
-   * Elimina la partida guardada localmente
+   * Elimina la partida guardada localmente y purga el canal de la nube
    */
   async deleteSave(romName) {
     const baseName = this.sanitizeName(romName || this.currentRomName);
@@ -285,80 +291,147 @@ class SaveManager {
       } catch (e) {}
     }
 
+    if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
+      window.cloudSaveManager.purgeCloudChannel(romName || this.currentRomName).catch(() => {});
+    }
+
     window._activeRomSaveData = null;
     this.lastSavedHash = null;
     if (window.app) window.app.lastSavedHash = null;
 
-    this.showToast(`🗑️ Partida local "${filename}" eliminada.`, 'info');
+    this.showToast(`🗑️ Partida "${filename}" eliminada.`, 'info');
     return true;
   }
 
   /**
-   * Carga la partida existente (.sav)
-   * REGLA ESTRICTA: El guardado LOCAL es el rey.
-   * La Nube es ÚNICAMENTE un respaldo de emergencia por si el local no existe.
+   * Carga la partida existente (.sav) siguiendo la regla estricta:
+   * 1. Prioridad 1 en Local.
+   * 2. Si la marca de tiempo de la nube es mayor (más reciente), se carga la Nube.
+   * 3. Si hay un save sin marca de tiempo, se purga inmediatamente (tanto de Local como de Nube).
    */
   async loadExistingSave(romName) {
     const baseName = this.sanitizeName(romName || this.currentRomName);
     const filename = `${baseName}.sav`;
 
-    // 1. Cargar el guardado LOCAL único desde IndexedDB
-    let localData = await this.getFromIndexedDB(filename);
+    // 1. Obtener registro LOCAL desde IndexedDB
+    let localRecord = await this.getLocalSaveRecord(baseName);
+    let localData = null;
+    let localTimestamp = 0;
 
-    // 2. Si no está en IndexedDB, buscar en la carpeta en disco vinculada
+    if (localRecord && localRecord.data) {
+      const u8 = localRecord.data instanceof Uint8Array ? localRecord.data : new Uint8Array(localRecord.data);
+      const ts = Number(localRecord.timestamp);
+
+      // PURGA: Si el guardado local no tiene marca de tiempo válida, purgarlo
+      if (!ts || isNaN(ts) || ts <= 0 || !this.isValidSaveBuffer(u8)) {
+        console.warn(`🧹 [Save Load] Guardado local "${filename}" sin marca de tiempo válida o no inicializado. Purgando...`);
+        await this.deleteSave(romName);
+        localRecord = null;
+      } else {
+        localData = u8;
+        localTimestamp = ts;
+      }
+    }
+
+    // 2. Si no hay en IndexedDB, buscar en la carpeta en disco vinculada
     if (!localData && this.directoryHandle) {
-      localData = await this.readFromDisk(filename);
-      if (localData && this.isValidSaveBuffer(localData)) {
-        await this.saveToIndexedDB(filename, localData);
+      const diskResult = await this.readFromDiskWithMeta(filename);
+      if (diskResult && diskResult.data && this.isValidSaveBuffer(diskResult.data)) {
+        const ts = Number(diskResult.timestamp) || 0;
+        if (ts > 0) {
+          localData = diskResult.data;
+          localTimestamp = ts;
+          await this.saveToIndexedDB(filename, localData, localTimestamp);
+        }
       }
     }
 
-    // 3. SI EXISTE GUARDADO LOCAL VÁLIDO: USARLO SIEMPRE
-    if (localData && localData.byteLength >= 512 && this.isValidSaveBuffer(localData)) {
-      console.log(`✅ [Save Load] Guardado LOCAL cargado (${localData.byteLength} bytes).`);
-      this.lastSavedHash = this.computeHash(localData);
-      window._activeRomSaveData = localData;
-
-      // Respaldar en la nube en segundo plano
-      if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
-        window.cloudSaveManager.uploadCloudSave(localData, baseName).catch(() => {});
-      }
-
-      this.showToast(`💾 Partida local cargada con éxito`, 'success');
-      return localData;
-    }
-
-    // 4. SOLO SI NO HAY GUARDADO LOCAL: Buscar respaldo de emergencia en la Nube
-    console.log('ℹ️ [Save Load] No hay partida local. Buscando respaldo en la Nube...');
+    // 3. Consultar NUBE (PubNub)
     let cloudResult = null;
     if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
       try {
         cloudResult = await window.cloudSaveManager.fetchLatestCloudSave(romName);
+        if (cloudResult) {
+          const cTs = Number(cloudResult.timestamp);
+          if (!cTs || isNaN(cTs) || cTs <= 0 || !cloudResult.data || !this.isValidSaveBuffer(cloudResult.data)) {
+            console.warn(`🧹 [Save Load] Guardado en la nube para "${romName}" sin marca de tiempo válida. Purgando...`);
+            await window.cloudSaveManager.purgeCloudChannel(romName);
+            cloudResult = null;
+          }
+        }
       } catch (e) {
         console.warn('Error consultando nube:', e);
       }
     }
 
-    if (cloudResult && cloudResult.data && cloudResult.data.byteLength >= 512 && this.isValidSaveBuffer(cloudResult.data)) {
-      console.log(`☁️ [Save Load] Respaldo de la Nube recuperado (${cloudResult.data.byteLength} bytes). Restaurando a local...`);
-      await this.saveToIndexedDB(filename, cloudResult.data, cloudResult.timestamp);
-      if (this.directoryHandle) {
-        this.writeToDisk(filename, cloudResult.data).catch(() => {});
+    const cloudTimestamp = (cloudResult && cloudResult.timestamp) ? Number(cloudResult.timestamp) : 0;
+    const cloudData = cloudResult ? cloudResult.data : null;
+
+    console.log(`📊 [Save Compare] Local: ${localData ? `${localData.byteLength}B (Fecha: ${new Date(localTimestamp).toLocaleString()})` : 'Ninguno'} | Nube: ${cloudData ? `${cloudData.byteLength}B (Fecha: ${new Date(cloudTimestamp).toLocaleString()})` : 'Ninguna'}`);
+
+    // 4. RESOLUCIÓN DE CONFLICTOS CON PRIORIDAD 1:
+    // Caso A: Existen ambos guardados
+    if (localData && cloudData) {
+      if (cloudTimestamp > localTimestamp) {
+        // La Nube es MÁS NUEVA -> Cargar Nube y sincronizar a Local
+        console.log(`☁️ [Save Load] La Nube es más reciente (${cloudTimestamp} > ${localTimestamp}). Cargando guardado de la Nube...`);
+        await this.saveToIndexedDB(filename, cloudData, cloudTimestamp);
+        if (this.directoryHandle) {
+          this.writeToDisk(filename, cloudData).catch(() => {});
+        }
+        this.lastSavedHash = this.computeHash(cloudData);
+        window._activeRomSaveData = cloudData;
+        this.showToast(`☁️ Partida cargada desde la Nube (más reciente: ${new Date(cloudTimestamp).toLocaleTimeString()})`, 'success');
+        return cloudData;
+      } else {
+        // El Local es igual o más nuevo -> Cargar Local (Prioridad 1)
+        console.log(`💾 [Save Load] Local seleccionado por Prioridad 1 (${localTimestamp} >= ${cloudTimestamp}).`);
+        if (localTimestamp > cloudTimestamp && window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
+          // Subir a la nube para actualizar el respaldo pasivo
+          window.cloudSaveManager.uploadCloudSave(localData, baseName, localTimestamp).catch(() => {});
+        }
+        this.lastSavedHash = this.computeHash(localData);
+        window._activeRomSaveData = localData;
+        this.showToast(`💾 Partida local cargada con éxito (${new Date(localTimestamp).toLocaleTimeString()})`, 'success');
+        return localData;
       }
-      this.lastSavedHash = this.computeHash(cloudResult.data);
-      window._activeRomSaveData = cloudResult.data;
-      this.showToast(`☁️ Partida recuperada desde la Nube (Respaldo)`, 'success');
-      return cloudResult.data;
     }
 
-    console.log('ℹ️ [Save Load] No hay partida previa. Iniciando juego nuevo.');
+    // Caso B: Solo existe Local
+    if (localData) {
+      console.log(`💾 [Save Load] Solo existe guardado LOCAL (${new Date(localTimestamp).toLocaleString()}). Cargando...`);
+      if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
+        window.cloudSaveManager.uploadCloudSave(localData, baseName, localTimestamp).catch(() => {});
+      }
+      this.lastSavedHash = this.computeHash(localData);
+      window._activeRomSaveData = localData;
+      this.showToast(`💾 Partida local cargada con éxito`, 'success');
+      return localData;
+    }
+
+    // Caso C: Solo existe Nube
+    if (cloudData) {
+      console.log(`☁️ [Save Load] Solo existe guardado en la NUBE (${new Date(cloudTimestamp).toLocaleString()}). Restaurando a Local y cargando...`);
+      await this.saveToIndexedDB(filename, cloudData, cloudTimestamp);
+      if (this.directoryHandle) {
+        this.writeToDisk(filename, cloudData).catch(() => {});
+      }
+      this.lastSavedHash = this.computeHash(cloudData);
+      window._activeRomSaveData = cloudData;
+      this.showToast(`☁️ Partida recuperada desde la Nube`, 'success');
+      return cloudData;
+    }
+
+    // Caso D: Ninguno disponible
+    console.log('ℹ️ [Save Load] No hay partida previa con marca de tiempo válida. Iniciando juego nuevo.');
     window._activeRomSaveData = null;
+    this.lastSavedHash = null;
     return null;
   }
 
   /**
    * Guarda los datos de la partida (.sav)
-   * Escribe en el único save local, en disco y en la nube en segundo plano
+   * Asigna SIEMPRE una marca de tiempo positiva garantizada (Date.now()) en local y en la nube
    */
   async saveGameData(saveData, customFileName = null, isAutoSave = false, forceDownload = false, showPrompt = false, source = 'manual') {
     if (!saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) return false;
@@ -387,6 +460,7 @@ class SaveManager {
       window.app.lastSavedHash = window.app.computeSaveHash(uint8Data);
     }
 
+    // Marca de tiempo garantizada para Local y Nube
     const saveTimestamp = Date.now();
 
     // 1. Guardar en el ÚNICO registro de IndexedDB
@@ -402,7 +476,7 @@ class SaveManager {
       this.writeToDisk(filename, uint8Data).catch(() => {});
     }
 
-    // 4. Subir a la Nube (PubNub) como copia de respaldo
+    // 4. Subir a la Nube (PubNub) con el mismo timestamp exacto
     if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
       window.cloudSaveManager.uploadCloudSave(uint8Data, this.currentRomName, saveTimestamp).catch(() => {});
     }
@@ -438,16 +512,19 @@ class SaveManager {
   }
 
   /**
-   * Lee un archivo directamente del disco vinculado
+   * Lee un archivo directamente del disco vinculado con sus metadatos
    */
-  async readFromDisk(filename) {
+  async readFromDiskWithMeta(filename) {
     if (!this.directoryHandle) return null;
     try {
       const fileHandle = await this.directoryHandle.getFileHandle(filename);
       const file = await fileHandle.getFile();
       const buffer = await file.arrayBuffer();
       if (buffer && buffer.byteLength >= 512) {
-        return new Uint8Array(buffer);
+        return {
+          data: new Uint8Array(buffer),
+          timestamp: file.lastModified || Date.now()
+        };
       }
     } catch (e) {}
     return null;
@@ -546,14 +623,13 @@ class SaveManager {
   }
 
   /**
-   * Descarga directamente el archivo .sav actual sin prompts (para PKHeX)
+   * Descarga directamente el archivo .sav actual más reciente para PKHeX
    */
   async exportSavFileDirect(romName) {
     const baseName = this.sanitizeName(romName || this.currentRomName);
     const filename = `${baseName}.sav`;
-    const saveInfo = await this.getSaveFileInfo(baseName);
+    let uint8 = await this.loadExistingSave(romName || this.currentRomName);
     
-    let uint8 = saveInfo.data;
     if (!uint8 || uint8.byteLength === 0) {
       uint8 = new Uint8Array(512 * 1024);
       uint8.fill(0xFF);
@@ -564,7 +640,7 @@ class SaveManager {
   }
 
   /**
-   * Importa y asegura un archivo .sav editado con PKHeX
+   * Importa y asegura un archivo .sav editado con PKHeX asignando timestamp nuevo
    */
   async importPkhexEditedSave(romName, data) {
     if (!data) return false;
@@ -576,7 +652,7 @@ class SaveManager {
     const now = Date.now();
 
     try {
-      // 1. Guardar en el único registro de IndexedDB
+      // 1. Guardar en el único registro de IndexedDB con marca de tiempo actual
       await this.saveToIndexedDB(filename, uint8, now);
       window._activeRomSaveData = uint8;
 
@@ -585,7 +661,7 @@ class SaveManager {
         this.writeToDisk(filename, uint8).catch(() => {});
       }
 
-      // 3. Inyectar en emulador si está corriendo y recargar SRAM en el núcleo
+      // 3. Inyectar en emulador si está corriendo
       if (window.EJS_emulator?.gameManager?.FS) {
         try {
           const gm = window.EJS_emulator.gameManager;
@@ -595,7 +671,7 @@ class SaveManager {
           const targetPath = gm.getSaveFilePath?.();
           if (targetPath) {
             try {
-              if (gm.FS.analyzePath(targetPath).exists) gm.FS.unlink(dynamicPath);
+              if (gm.FS.analyzePath(targetPath).exists) gm.FS.unlink(targetPath);
               gm.FS.writeFile(targetPath, uint8);
             } catch (e) {}
           }
@@ -605,7 +681,7 @@ class SaveManager {
         } catch (e) {}
       }
 
-      // 4. Sincronizar en la Nube
+      // 4. Sincronizar en la Nube con el mismo timestamp
       if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
         window.cloudSaveManager.uploadCloudSave(uint8, baseName, now);
       }
@@ -636,11 +712,14 @@ class SaveManager {
     let data = null;
 
     if (localRec && localRec.data) {
-      exists = true;
-      size = localRec.size || localRec.data.byteLength || 0;
-      timestamp = localRec.timestamp || 0;
-      location = 'Almacenamiento Local (IndexedDB)';
-      data = localRec.data instanceof Uint8Array ? localRec.data : new Uint8Array(localRec.data);
+      const ts = Number(localRec.timestamp);
+      if (ts > 0 && this.isValidSaveBuffer(localRec.data)) {
+        exists = true;
+        size = localRec.size || localRec.data.byteLength || 0;
+        timestamp = ts;
+        location = 'Almacenamiento Local (IndexedDB)';
+        data = localRec.data instanceof Uint8Array ? localRec.data : new Uint8Array(localRec.data);
+      }
     }
 
     const sizeFormatted = size > 0 ? `${(size / 1024).toFixed(0)} KB` : '0 KB';
