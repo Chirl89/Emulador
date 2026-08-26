@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.8.1
+ * Versión: v0.8.2
  */
 
 class NDSEmulatorApp {
@@ -224,22 +224,21 @@ class NDSEmulatorApp {
 
       try {
         const gm = window.EJS_emulator.gameManager;
-        let saveData = null;
-
-        if (typeof gm.getSaveFile === 'function') {
-          saveData = gm.getSaveFile();
-        } else if (typeof gm.saveSaveFiles === 'function') {
+        // 1. Forzar a RetroArch a volcar la SRAM activa de la memoria del juego al disco virtual
+        if (typeof gm.saveSaveFiles === 'function') {
           gm.saveSaveFiles();
-          saveData = gm.getSaveFile?.(false);
         }
 
-        if (saveData && (saveData.byteLength || saveData.length) > 0) {
-          const currentHash = this.computeSaveHash(saveData);
-          const isProgressed = window.saveManager ? window.saveManager.isSramValidAndProgressed(saveData) : false;
+        // 2. Leer la SRAM del FS
+        const saveData = (typeof gm.getSaveFile === 'function') ? gm.getSaveFile(false) : null;
 
-          // PROTECCIÓN TOTAL ANTI-VACÍO:
-          // Solo auto-guardar si el usuario guardó en el juego O si la SRAM es válida y difiere del arranque
-          if (this.hasPlayerSavedInSession || (isProgressed && currentHash !== this.initialBootSramHash)) {
+        if (saveData && saveData.byteLength >= 512) {
+          const currentHash = this.computeSaveHash(saveData);
+          const isValidSram = window.saveManager ? window.saveManager.isSramValidAndProgressed(saveData) : false;
+
+          // Si la SRAM es válida y el hash es distinto del arranque (el usuario guardó en el juego), o guardó manualmente
+          if (isValidSram && (this.hasPlayerSavedInSession || (this.initialBootSramHash && currentHash !== this.initialBootSramHash))) {
+            this.hasPlayerSavedInSession = true;
             window.saveManager?.saveGameData(
               saveData,
               `${window.saveManager.sanitizeName(this.currentRomName)}.sav`,
@@ -252,19 +251,33 @@ class NDSEmulatorApp {
       } catch (err) {
         console.warn('Error en daemon de auto-guardado:', err);
       }
-    }, 4000);
+    }, 3000);
 
     // Guardar automáticamente antes de salir o recargar la página
     window.addEventListener('beforeunload', () => {
-      if (this.isEmulating) {
-        this.triggerSave(true);
+      if (this.isEmulating && window.EJS_emulator?.gameManager) {
+        try {
+          const gm = window.EJS_emulator.gameManager;
+          if (typeof gm.saveSaveFiles === 'function') gm.saveSaveFiles();
+          const saveData = gm.getSaveFile?.(false);
+          if (saveData && window.saveManager?.isSramValidAndProgressed(saveData)) {
+            window.saveManager.saveGameData(saveData, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, true, false, false, 'unload');
+          }
+        } catch (e) {}
       }
     });
 
-    // Guardar si la app entra en segundo plano (ej. cambiar de app en iOS)
+    // Guardar si la app entra en segundo plano (ej. cambiar de app en iOS / minimizar ventana)
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden' && this.isEmulating) {
-        this.triggerSave(true);
+      if (document.visibilityState === 'hidden' && this.isEmulating && window.EJS_emulator?.gameManager) {
+        try {
+          const gm = window.EJS_emulator.gameManager;
+          if (typeof gm.saveSaveFiles === 'function') gm.saveSaveFiles();
+          const saveData = gm.getSaveFile?.(false);
+          if (saveData && window.saveManager?.isSramValidAndProgressed(saveData)) {
+            window.saveManager.saveGameData(saveData, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, true, false, false, 'visibility_hidden');
+          }
+        } catch (e) {}
       }
     });
   }
@@ -1558,12 +1571,16 @@ class NDSEmulatorApp {
     const uint8 = saveData instanceof Uint8Array ? saveData : new Uint8Array(saveData);
     const baseName = window.saveManager ? window.saveManager.sanitizeName(romName || this.currentRomName) : 'game';
     const cleanRom = (romName || this.currentRomName || '').replace(/\.(nds|zip|7z)$/i, '');
+    const romFullName = (romName || this.currentRomName || '');
 
     const dirs = [
       '/data',
       '/data/saves',
       '/home',
       '/home/web_user',
+      '/home/web_user/.config',
+      '/home/web_user/.config/retroarch',
+      '/home/web_user/.config/retroarch/saves',
       '/home/web_user/retroarch',
       '/home/web_user/retroarch/userdata',
       '/home/web_user/retroarch/userdata/saves',
@@ -1580,6 +1597,7 @@ class NDSEmulatorApp {
     });
 
     const targetPaths = [
+      // 1. Ubicaciones canónicas (/data/saves)
       `/data/saves/${baseName}.srm`,
       `/data/saves/${baseName}.sav`,
       `/data/saves/${baseName}.dsv`,
@@ -1587,9 +1605,29 @@ class NDSEmulatorApp {
       `/data/saves/${cleanRom}.sav`,
       `/data/saves/${cleanRom}.nds.srm`,
       `/data/saves/${cleanRom}.nds.sav`,
+      `/data/saves/${romFullName}.srm`,
+      `/data/saves/${romFullName}.sav`,
       `/data/saves/game.srm`,
       `/data/saves/game.sav`,
       `/data/saves/game.dsv`,
+
+      // 2. Raíz (por si RetroArch busca relativo a la ROM en /)
+      `/${baseName}.srm`,
+      `/${baseName}.sav`,
+      `/${baseName}.dsv`,
+      `/${cleanRom}.srm`,
+      `/${cleanRom}.sav`,
+      `/${cleanRom}.nds.srm`,
+      `/${cleanRom}.nds.sav`,
+      `/${romFullName}.srm`,
+      `/${romFullName}.sav`,
+      `/game.srm`,
+      `/game.sav`,
+      `/game.dsv`,
+
+      // 3. Rutas de usuario de RetroArch
+      `/home/web_user/.config/retroarch/saves/${baseName}.srm`,
+      `/home/web_user/.config/retroarch/saves/${baseName}.sav`,
       `/home/web_user/retroarch/userdata/saves/${baseName}.srm`,
       `/home/web_user/retroarch/userdata/saves/${baseName}.sav`,
       `/home/web_user/retroarch/userdata/saves/${cleanRom}.srm`,
@@ -1796,6 +1834,18 @@ class NDSEmulatorApp {
 
     const buildOsdSuppressedCfg = () => {
       return [
+        'savefile_directory = "/data/saves"',
+        'savestate_directory = "/data/saves"',
+        'block_sram_overwrite = false',
+        'autosave_interval = 10',
+        'screenshot_directory = "/"',
+        'video_gpu_screenshot = false',
+        'audio_latency = 64',
+        'video_top_portrait_viewport = true',
+        'video_vsync = true',
+        'video_smooth = false',
+        'fastforward_ratio = 3.0',
+        'slowmotion_ratio = 3.0',
         'notification_show_fast_forward = false',
         'menu_enable_widgets = false',
         'widgets_enable = false',
@@ -1851,6 +1901,24 @@ class NDSEmulatorApp {
     // Hook de inicialización para inyectar configuración e inyección pre-boot de guardado
     window.EJS_ready = () => {
       if (window.EJS_emulator) {
+        // 1. Escuchar cuando IDBFS termine de montarse en /data/saves
+        window.EJS_emulator.on("saveDatabaseLoaded", (fs) => {
+          console.log('⚡ [Event: saveDatabaseLoaded] IDBFS montado. Inyectando partida previa...');
+          const activeFS = fs || window.EJS_emulator?.gameManager?.FS;
+          if (window._activeRomSaveData && activeFS) {
+            this.injectSaveFilesToFS(activeFS, window._activeRomSaveData, this.currentRomName);
+          }
+        });
+
+        // 2. Escuchar evento directo de guardado emitido por GameManager
+        window.EJS_emulator.on("saveSaveFiles", (data) => {
+          console.log('⚡ [Event: saveSaveFiles] Datos de SRAM emitidos por el emulador:', data ? (data.byteLength || data.length) : 0);
+          if (data && window.saveManager) {
+            this.hasPlayerSavedInSession = true;
+            window.saveManager.saveGameData(data, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, true, false, false, 'emulator_event');
+          }
+        });
+
         window.EJS_emulator.retroarchOpts = window.EJS_emulator.retroarchOpts || [];
         window.EJS_emulator.retroarchOpts.push(
           { name: "menu_enable_widgets", default: "false", isString: false },
@@ -1885,13 +1953,14 @@ class NDSEmulatorApp {
                     try {
                       mod.FS.writeFile(`/data/saves/${argName}.srm`, window._activeRomSaveData);
                       mod.FS.writeFile(`/data/saves/${argName}.sav`, window._activeRomSaveData);
+                      mod.FS.writeFile(`/${argName}.srm`, window._activeRomSaveData);
+                      mod.FS.writeFile(`/${argName}.sav`, window._activeRomSaveData);
                     } catch (e) {}
                   }
                 }
               }
 
-              const customArgs = ["-c", "/retroarch.cfg", "--appendconfig", "/retroarch.cfg", ...(args || [])];
-              return origCallMain.call(mod, customArgs);
+              return origCallMain.call(mod, args);
             };
           }
           return mod;
@@ -1977,7 +2046,7 @@ class NDSEmulatorApp {
 
       // Inyección y recarga activa en el núcleo WASM
       const saveData = window._activeRomSaveData || (window.saveManager ? await window.saveManager.loadExistingSave(this.currentRomName) : null);
-      if (saveData && saveData.byteLength > 0 && window.EJS_emulator?.gameManager) {
+      if (saveData && saveData.byteLength >= 512 && window.EJS_emulator?.gameManager) {
         const gm = window.EJS_emulator.gameManager;
         if (gm.FS) {
           this.injectSaveFilesToFS(gm.FS, saveData, this.currentRomName);
@@ -1997,12 +2066,12 @@ class NDSEmulatorApp {
         window.saveManager?.showToast(`🎮 Partida cargada con éxito (${(saveData.byteLength/1024).toFixed(0)} KB)`, 'success');
       }
 
-      // Reintentos de sincronización a los 800ms y 1800ms (por si el core retrasó la inicialización de memoria)
+      // Reintentos de sincronización a los 500ms y 1200ms
       const performSaveSyncRetry = () => {
         if (window.EJS_emulator?.gameManager && !this.hasPlayerSavedInSession) {
           const gm = window.EJS_emulator.gameManager;
           const currentSave = window._activeRomSaveData;
-          if (currentSave && currentSave.byteLength > 0 && gm.FS) {
+          if (currentSave && currentSave.byteLength >= 512 && gm.FS) {
             const savePath = gm.getSaveFilePath?.();
             if (savePath) {
               try {
@@ -2011,14 +2080,14 @@ class NDSEmulatorApp {
             }
             if (typeof gm.loadSaveFiles === 'function') {
               gm.loadSaveFiles();
-              console.log('[Post-Boot Safety] gm.loadSaveFiles() re-ejecutado con éxito.');
+              console.log('[Post-Boot Safety] gm.loadSaveFiles() re-ejecutado.');
             }
           }
         }
       };
 
-      setTimeout(performSaveSyncRetry, 800);
-      setTimeout(performSaveSyncRetry, 1800);
+      setTimeout(performSaveSyncRetry, 500);
+      setTimeout(performSaveSyncRetry, 1200);
 
       this.gameStartedTime = Date.now();
       setTimeout(() => {
@@ -2028,7 +2097,7 @@ class NDSEmulatorApp {
           if (typeof gm.getSaveFile === 'function') {
             sData = gm.getSaveFile(false);
           }
-          if (sData) {
+          if (sData && sData.byteLength >= 512) {
             this.initialBootSramHash = this.computeSaveHash(sData);
             this.lastSavedHash = this.initialBootSramHash;
             console.log('Hash inicial de arranque capturado:', this.initialBootSramHash);
@@ -2228,10 +2297,10 @@ class NDSEmulatorApp {
     let saveData = null;
 
     try {
-      if (typeof gm.getSaveFile === 'function') {
-        saveData = gm.getSaveFile();
-      } else if (typeof gm.saveSaveFiles === 'function') {
+      if (typeof gm.saveSaveFiles === 'function') {
         gm.saveSaveFiles();
+      }
+      if (typeof gm.getSaveFile === 'function') {
         saveData = gm.getSaveFile(false);
       }
     } catch (err) {
@@ -2760,7 +2829,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.8.1') {
+              if (key !== 'nds-emulator-v0.8.2') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2768,7 +2837,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.8.1').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.8.2').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

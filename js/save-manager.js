@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Save Manager
  * Gestor de persistencia robusta, Bóveda Time-Machine de backups, importación/exportación y sincronización en disco
- * Versión: v0.8.1
+ * Versión: v0.8.2
  */
 
 class SaveManager {
@@ -114,7 +114,7 @@ class SaveManager {
 
   /**
    * Valida si un buffer de guardado contiene datos de SRAM reales
-   * Evita que buffers vacíos o no inicializados (100% 0x00 o 100% 0xFF) pisen partidas reales
+   * Devuelve true si no es 100% ceros ni 100% 0xFF (memoria no inicializada)
    */
   isSramValidAndProgressed(data) {
     if (!data) return false;
@@ -123,24 +123,16 @@ class SaveManager {
 
     let hasNonZero = false;
     let hasNonFF = false;
-    let nonZeroCount = 0;
-
-    // Muestreamos a lo largo de todo el buffer (512 muestras distribuidas homogéneamente)
     const len = uint8.byteLength;
-    const sampleStep = Math.max(1, Math.floor(len / 512));
-    for (let i = 0; i < len; i += sampleStep) {
+
+    for (let i = 0; i < len; i++) {
       const b = uint8[i];
-      if (b !== 0x00) {
-        hasNonZero = true;
-        nonZeroCount++;
-      }
-      if (b !== 0xFF) {
-        hasNonFF = true;
-      }
+      if (b !== 0x00) hasNonZero = true;
+      if (b !== 0xFF) hasNonFF = true;
+      if (hasNonZero && hasNonFF) return true;
     }
 
-    // Un archivo con solo 0x00 o solo 0xFF en todo el buffer es memoria no inicializada
-    return (hasNonZero && hasNonFF && nonZeroCount >= 2);
+    return (hasNonZero && hasNonFF);
   }
 
   /**
@@ -402,7 +394,7 @@ class SaveManager {
       const tx = this.db.transaction('saves', 'readonly');
       const store = tx.objectStore('saves');
 
-      // 1. Probar en orden de prioridad secuencial
+      // 1. Probar en orden de prioridad secuencial registros con SRAM válida
       for (const key of priorityKeys) {
         const rec = await new Promise((res) => {
           const req = store.get(key);
@@ -412,7 +404,7 @@ class SaveManager {
 
         if (rec && rec.data) {
           const byteLen = rec.data.byteLength || rec.data.length || 0;
-          if (byteLen >= 512) {
+          if (byteLen >= 512 && this.isSramValidAndProgressed(rec.data)) {
             return rec;
           }
         }
@@ -431,29 +423,39 @@ class SaveManager {
           const cleanRecName = rec.name.toLowerCase().replace(/[^a-z0-9]/g, '');
           if (cleanRecName.includes(cleanTarget) || cleanTarget.includes(cleanRecName)) {
             const byteLen = rec.data.byteLength || rec.data.length || 0;
-            if (byteLen >= 512) {
+            if (byteLen >= 512 && this.isSramValidAndProgressed(rec.data)) {
               return rec;
             }
           }
         }
       }
 
-      // 3. Si aún no hay nada en 'saves', buscar en la Bóveda de 'backups'
+      // 3. Si en 'saves' no hay datos con progreso, buscar en la Bóveda de 'backups' (Time-Machine)
       const backups = await this.getBackupsForRom(baseName);
       if (backups && backups.length > 0) {
         for (const b of backups) {
-          if (b && b.data) {
+          if (b && b.data && this.isSramValidAndProgressed(b.data)) {
             const byteLen = b.data.byteLength || b.data.length || 0;
-            if (byteLen >= 512) {
-              return {
-                name: `${baseName}.sav`,
-                data: b.data,
-                size: byteLen,
-                timestamp: b.timestamp || Date.now(),
-                hash: b.hash
-              };
-            }
+            return {
+              name: `${baseName}.sav`,
+              data: b.data,
+              size: byteLen,
+              timestamp: b.timestamp || Date.now(),
+              hash: b.hash
+            };
           }
+        }
+      }
+
+      // 4. Último recurso: si había algún registro local aunque sea sin inicializar
+      for (const key of priorityKeys) {
+        const rec = await new Promise((res) => {
+          const req = store.get(key);
+          req.onsuccess = () => res(req.result || null);
+          req.onerror = () => res(null);
+        });
+        if (rec && rec.data && (rec.data.byteLength || rec.data.length || 0) >= 512) {
+          return rec;
         }
       }
 
@@ -769,24 +771,31 @@ class SaveManager {
     }
   }
 
-  /**
-   * Guarda partida en almacén 'saves' de IndexedDB con timestamp y hash
-   */
   async saveToIndexedDB(name, data) {
-    if (!this.db || !data) return;
-    try {
-      const uint8 = data instanceof Uint8Array ? data : (data instanceof ArrayBuffer ? new Uint8Array(data) : null);
-      const tx = this.db.transaction('saves', 'readwrite');
-      tx.objectStore('saves').put({
-        name: name,
-        data: uint8 || data,
-        size: (uint8 || data).byteLength || 0,
-        hash: this.computeHash(uint8 || data),
-        timestamp: Date.now()
-      });
-    } catch (err) {
-      console.warn('Error guardando en IndexedDB:', err);
-    }
+    if (!this.db || !data) return false;
+    const uint8 = data instanceof Uint8Array ? data : (data instanceof ArrayBuffer ? new Uint8Array(data) : null);
+    if (!uint8 || uint8.byteLength === 0) return false;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('saves', 'readwrite');
+        tx.objectStore('saves').put({
+          name: name,
+          data: uint8,
+          size: uint8.byteLength,
+          hash: this.computeHash(uint8),
+          timestamp: Date.now()
+        });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = (e) => {
+          console.warn(`Error en saveToIndexedDB para ${name}:`, e);
+          resolve(false);
+        };
+      } catch (err) {
+        console.warn('Error iniciando transacción en IndexedDB:', err);
+        resolve(false);
+      }
+    });
   }
 
   /**

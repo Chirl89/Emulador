@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Gamepad Manager
  * Soporte especializado para Asus ROG Ally (Mando integrado XInput) y mandos estándar
- * Versión: v0.8.1
+ * Versión: v0.8.2
  */
 
 class GamepadController {
