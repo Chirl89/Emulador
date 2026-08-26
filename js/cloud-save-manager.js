@@ -2,7 +2,7 @@
  * NDS Web Emulator - Cloud Save Manager
  * Sincronización bidireccional en tiempo real y persistencia en la nube
  * Validación de integridad por chunks, timestamps y resolución de conflictos
- * Versión: v0.8.0
+ * Versión: v0.8.1
  */
 
 class CloudSaveManager {

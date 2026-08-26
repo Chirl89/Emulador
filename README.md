@@ -1,13 +1,14 @@
 # 🎮 NDS Web Emulator (ROG Ally & Safari Edition)
 
-[![Version](https://img.shields.io/badge/version-v0.8.0-00f0ff.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-v0.8.1-00f0ff.svg)](./VERSION)
 [![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS%20|%20Opera%20GX-ff0055.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssembly (DeSmuME / melonDS core), optimizado específicamente para:
 1. **💉 Integración Total con PKHeX Web Studio**: Edita tus partidas `.sav` (Pokémon, dinero, medallas, objetos, cajas del PC, IVs/EVs, shinies) directamente desde el emulador con sincronización bidireccional y carga automática antes de iniciar la partida.
 2. **🚀 Panel de Preparación y Lanzamiento de Juegos**: Al seleccionar un juego o pulsar en recientes, el emulador no arranca de golpe; te permite elegir entre iniciar el juego o abrir PKHeX, mostrando el estado de la partida vinculada.
-3. **🚀 Máxima Fluidez & 60 FPS en Safari iOS**: Optimizaciones en el motor WebAssembly (DSP de audio ultrarrápido sin interpolación costosa, latencia de audio adaptada a WebKit para evitar parones, selector de Frameskip y aceleración GPU nativa por capas `translate3d`).
+3. **🛡️ Inyección de Guardados Acorazada (.sav / .srm)**: Carga garantizada pre-boot y post-boot de partidas en el núcleo WASM de RetroArch (`refresh_save_files`), compatibilidad total con extensiones `.sav` y `.srm`, y blindaje anti-vacío para que nunca se inicie desde cero si existe una partida guardada o en la Bóveda.
+4. **🚀 Máxima Fluidez & 60 FPS en Safari iOS**: Optimizaciones en el motor WebAssembly (DSP de audio ultrarrápido sin interpolación costosa, latencia de audio adaptada a WebKit para evitar parones, selector de Frameskip y aceleración GPU nativa por capas `translate3d`).
 4. **🕹️ Corrección Total de Gatillos L y R**: Inyección limpia de botones directos C-WASM sin disparos accidentales de funciones de pantalla (Screen Swap) ni pantallas en blanco.
 5. **🛡️ Sistema Acorazado de Guardado & Bóveda Time-Machine**: Historial con hasta 30 snapshots automáticos por juego, prevención total de sobreescritura con SRAM en blanco, resolución inteligente de conflictos por marcas de tiempo y restauración con 1 clic.
 6. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
@@ -38,7 +39,7 @@ Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssemb
 
 ## 💉 PKHeX Web Studio & Panel de Preparación de Juego
 
-A partir de la versión **`v0.8.0`**, el emulador incorpora una suite integrada de edición de guardados de Pokémon:
+A partir de la versión **`v0.8.0+` (optimizado y reforzado en `v0.8.1`)**, el emulador incorpora una suite integrada de edición de guardados de Pokémon:
 
 1. **🚀 Panel de Preparación**: Al seleccionar una ROM `.nds` o pulsar en un juego reciente, no se inicia la emulación inmediatamente. Se abre un panel interactivo que muestra:
    - Nombre y peso de la ROM.
