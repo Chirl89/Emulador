@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.9.1
+ * Versión: v0.9.2
  */
 
 class NDSEmulatorApp {
@@ -1598,7 +1598,12 @@ class NDSEmulatorApp {
     // Pre-cargar la partida existente en memoria antes de instanciar EmulatorJS
     let preloadedSave = null;
     if (window.saveManager) {
-      preloadedSave = await window.saveManager.loadExistingSave(this.currentRomName);
+      try {
+        preloadedSave = await window.saveManager.loadExistingSave(this.currentRomName);
+      } catch (err) {
+        console.warn('Error precargando partida:', err);
+        preloadedSave = null;
+      }
       window._activeRomSaveData = preloadedSave;
       console.log(`[Pre-Boot] Partida precargada para ${this.currentRomName}:`, preloadedSave ? `${preloadedSave.byteLength} bytes` : 'Ninguna');
     }
@@ -1822,137 +1827,61 @@ class NDSEmulatorApp {
       }
     };
 
-    // Hook de inicialización para inyectar configuración e inyección pre-boot de guardado
-    let _activeEmuInstance = null;
+    // Configuración limpia de callbacks y listeners del ciclo de vida de EmulatorJS
     const self = this;
 
-    const setupEmulatorHooks = (emu) => {
-      if (!emu || emu._customHooksAttached) return;
-      emu._customHooksAttached = true;
-
-      // 1. Escuchar cuando IDBFS termine de montarse en /data/saves
-      emu.on("saveDatabaseLoaded", (fs) => {
-        console.log('⚡ [Event: saveDatabaseLoaded] IDBFS montado. Inyectando partida previa...');
-        const activeFS = fs || emu.gameManager?.FS;
-        if (window._activeRomSaveData && activeFS) {
-          self.injectSaveFilesToFS(activeFS, window._activeRomSaveData, self.currentRomName);
-        }
-      });
-
-      // 2. Escuchar evento directo de guardado emitido por GameManager
-      emu.on("saveSaveFiles", (data) => {
-        if (self.isExiting) {
-          console.log('🛡️ [Event: saveSaveFiles] Omitido durante la secuencia de salida/reset.');
-          return;
-        }
-        if (data && data.byteLength >= 512 && window.saveManager) {
-          if (window.saveManager.isValidSaveBuffer(data)) {
-            console.log('⚡ [Event: saveSaveFiles] Guardando SRAM emitida por el emulador:', data.byteLength);
-            self.hasPlayerSavedInSession = true;
-            window._activeRomSaveData = data;
-            self.lastSavedHash = self.computeSaveHash(data);
-            window.saveManager.saveGameData(data, null, true, false, false, 'emulator_event');
-          }
-        }
-      });
-
-      emu.retroarchOpts = emu.retroarchOpts || [];
-      emu.retroarchOpts.push(
-        { name: "menu_enable_widgets", default: "false", isString: false },
-        { name: "menu_widget_scale_auto", default: "false", isString: false },
-        { name: "menu_widget_scale_factor", default: "0.0", isString: false },
-        { name: "video_font_enable", default: "false", isString: false },
-        { name: "notification_show_fast_forward", default: "false", isString: false },
-        { name: "fastforward_notification", default: "false", isString: false },
-        { name: "fps_show", default: "false", isString: false },
-        { name: "video_font_size", default: "0.0", isString: false },
-        { name: "video_message_pos_x", default: "5.0", isString: false },
-        { name: "video_message_pos_y", default: "5.0", isString: false },
-        { name: "video_msg_bgcolor_opacity", default: "0.0", isString: false }
-      );
-
-      let emuModule = emu.Module;
-      const hookModule = (mod) => {
-        if (!mod || mod._callMainHooked) return mod;
-        mod._callMainHooked = true;
-        const origCallMain = mod.callMain;
-        if (typeof origCallMain === 'function') {
-          mod.callMain = function(args) {
-            console.log('⚡ [Pre-CallMain] Inyectando configs y SRAM en FS antes de RetroArch:', args);
-            if (mod.FS) {
-              injectConfigsToFS(mod.FS);
-
-              // Inyección PRE-MAIN en FS antes de que RetroArch arranque
-              if (window._activeRomSaveData) {
-                self.injectSaveFilesToFS(mod.FS, window._activeRomSaveData, self.currentRomName);
-                if (args && args.length > 0) {
-                  const romArg = args[args.length - 1];
-                  if (typeof romArg === 'string' && romArg.startsWith('/')) {
-                    const argName = romArg.substring(1).replace(/\.(nds|zip|7z)$/i, '');
-                    try {
-                      mod.FS.writeFile(`/data/saves/${argName}.srm`, window._activeRomSaveData);
-                      mod.FS.writeFile(`/data/saves/${argName}.sav`, window._activeRomSaveData);
-                      mod.FS.writeFile(`/${argName}.srm`, window._activeRomSaveData);
-                      mod.FS.writeFile(`/${argName}.sav`, window._activeRomSaveData);
-                    } catch (e) {}
-                  }
-                }
-              }
-            }
-
-            return origCallMain.apply(this, arguments);
-          };
-        }
-        return mod;
-      };
-
-      if (emuModule) {
-        hookModule(emuModule);
-      }
-
-      try {
-        Object.defineProperty(emu, 'Module', {
-          get() { return emuModule; },
-          set(val) {
-            emuModule = hookModule(val);
-          },
-          configurable: true,
-          enumerable: true
-        });
-      } catch (e) {}
-    };
-
-    try {
-      Object.defineProperty(window, 'EJS_emulator', {
-        get() { return _activeEmuInstance; },
-        set(val) {
-          _activeEmuInstance = val;
-          if (val) setupEmulatorHooks(val);
-        },
-        configurable: true,
-        enumerable: true
-      });
-    } catch (e) {}
-
-    window.EJS_ready = () => {
-      if (window.EJS_emulator) setupEmulatorHooks(window.EJS_emulator);
-    };
-
-    // Callback de Guardado dentro del juego (ej. Guardar en Pokémon)
     window.EJS_onSaveSave = (data) => {
-      console.log('Evento saveSave detectado: guardando SRAM...');
-      this.hasPlayerSavedInSession = true;
-      if (data && window.saveManager) {
+      console.log('⚡ [Event: onSaveSave] Guardando SRAM emitida por el emulador...');
+      self.hasPlayerSavedInSession = true;
+      if (data && window.saveManager && window.saveManager.isValidSaveBuffer(data)) {
         window._activeRomSaveData = data;
-        this.lastSavedHash = this.computeSaveHash(data);
+        self.lastSavedHash = self.computeSaveHash(data);
         window.saveManager.saveGameData(data, null, true, false, false, 'in_game');
       }
     };
 
     window.EJS_onSaveUpdate = () => {
-      console.log('Evento onSaveUpdate detectado: sincronizando guardado...');
-      this.triggerSave(true);
+      console.log('⚡ [Event: onSaveUpdate] Sincronizando guardado...');
+      self.triggerSave(true);
     };
+
+    // Vincular listeners a window.EJS_emulator en cuanto se instancie
+    const attachEjsListeners = () => {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        if (window.EJS_emulator && typeof window.EJS_emulator.on === 'function') {
+          if (!window.EJS_emulator._customHooksAttached) {
+            window.EJS_emulator._customHooksAttached = true;
+            clearInterval(interval);
+
+            // 1. Inyectar partida previa cuando IDBFS monte /data/saves
+            window.EJS_emulator.on("saveDatabaseLoaded", (fs) => {
+              console.log('⚡ [Event: saveDatabaseLoaded] IDBFS montado. Inyectando partida previa...');
+              const activeFS = fs || window.EJS_emulator?.gameManager?.FS;
+              if (window._activeRomSaveData && activeFS) {
+                self.injectSaveFilesToFS(activeFS, window._activeRomSaveData, self.currentRomName);
+              }
+            });
+
+            // 2. Escuchar evento directo de guardado emitido por GameManager
+            window.EJS_emulator.on("saveSaveFiles", (data) => {
+              if (self.isExiting) return;
+              if (data && data.byteLength >= 512 && window.saveManager && window.saveManager.isValidSaveBuffer(data)) {
+                console.log('⚡ [Event: saveSaveFiles] Guardando SRAM emitida por el emulador:', data.byteLength);
+                self.hasPlayerSavedInSession = true;
+                window._activeRomSaveData = data;
+                self.lastSavedHash = self.computeSaveHash(data);
+                window.saveManager.saveGameData(data, null, true, false, false, 'emulator_event');
+              }
+            });
+          }
+        }
+        if (attempts > 300) clearInterval(interval);
+      }, 25);
+    };
+
+    attachEjsListeners();
 
     window.EJS_onGameStart = async () => {
       const overlay = document.getElementById('emulator-loading-overlay');
@@ -2757,7 +2686,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.9.1') {
+              if (key !== 'nds-emulator-v0.9.2') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2765,7 +2694,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.9.1').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.9.2').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

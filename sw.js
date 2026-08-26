@@ -1,10 +1,10 @@
 /**
  * NDS Web Emulator - Service Worker
  * Caché offline inteligente (Network-First) para Safari iOS y GitHub Pages
- * Versión: v0.9.1
+ * Versión: v0.9.2
  */
 
-const CACHE_NAME = 'nds-emulator-v0.9.1';
+const CACHE_NAME = 'nds-emulator-v0.9.2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -20,23 +20,25 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (e) => {
-  console.log('[Service Worker] Instalando v0.9.1...');
+  console.log('[Service Worker] Instalando v0.9.2...');
   self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      return cache.addAll(ASSETS_TO_CACHE).catch((err) => {
+        console.warn('[Service Worker] Falló cacheo de algunos assets:', err);
+      });
     })
   );
 });
 
 self.addEventListener('activate', (e) => {
-  console.log('[Service Worker] Activando v0.9.1 y purgando cachés obsoletas...');
+  console.log('[Service Worker] Activando v0.9.2 y purgando cachés obsoletas...');
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(
         keyList.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[Service Worker] Eliminada caché antigua:', key);
+            console.log('[Service Worker] Eliminando caché antigua:', key);
             return caches.delete(key);
           }
         })
@@ -46,20 +48,26 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Estrategia Network-First: Siempre intenta obtener el código más nuevo de la red
+  // Ignorar peticiones a CDNs de EmulatorJS, scripts externos y llamadas de PubNub
+  if (!e.request.url.startsWith(self.location.origin) ||
+      e.request.url.includes('cdn.emulatorjs.org') ||
+      e.request.url.includes('pubnub.com')) {
+    return;
+  }
+
+  // Network-First para assets de la aplicación (garantiza código siempre actualizado en Safari iOS)
   e.respondWith(
     fetch(e.request)
-      .then((response) => {
-        if (response && response.status === 200 && response.type === 'basic') {
-          const responseToCache = response.clone();
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(e.request, responseToCache);
           });
         }
-        return response;
+        return networkResponse;
       })
       .catch(() => {
-        // Fallback a caché si no hay conexión a internet
         return caches.match(e.request);
       })
   );

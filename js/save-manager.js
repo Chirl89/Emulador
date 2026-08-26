@@ -2,7 +2,7 @@
  * NDS Web Emulator - Save Manager
  * Gestor de persistencia directa: 1 único save local (.sav) con prioridad 1 y respaldo en la nube
  * Comparación exacta por marca de tiempo (timestamp) y purga obligatoria de saves sin fecha
- * Versión: v0.9.1
+ * Versión: v0.9.2
  */
 
 class SaveManager {
@@ -346,11 +346,14 @@ class SaveManager {
       }
     }
 
-    // 3. Consultar NUBE (PubNub)
+    // 3. Consultar NUBE (PubNub) con límite estricto de tiempo para evitar bloqueos
     let cloudResult = null;
     if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
       try {
-        cloudResult = await window.cloudSaveManager.fetchLatestCloudSave(romName);
+        const cloudPromise = window.cloudSaveManager.fetchLatestCloudSave(romName);
+        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 1800));
+        cloudResult = await Promise.race([cloudPromise, timeoutPromise]);
+
         if (cloudResult) {
           const cTs = Number(cloudResult.timestamp);
           if (!cTs || isNaN(cTs) || cTs <= 0 || !cloudResult.data || !this.isValidSaveBuffer(cloudResult.data)) {
@@ -387,7 +390,6 @@ class SaveManager {
         // El Local es igual o más nuevo -> Cargar Local (Prioridad 1)
         console.log(`💾 [Save Load] Local seleccionado por Prioridad 1 (${localTimestamp} >= ${cloudTimestamp}).`);
         if (localTimestamp > cloudTimestamp && window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
-          // Subir a la nube para actualizar el respaldo pasivo
           window.cloudSaveManager.uploadCloudSave(localData, baseName, localTimestamp).catch(() => {});
         }
         this.lastSavedHash = this.computeHash(localData);

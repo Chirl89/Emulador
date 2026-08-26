@@ -2,7 +2,7 @@
  * NDS Web Emulator - Cloud Save Manager
  * Sincronización pasiva en la nube y persistencia con marca de tiempo obligatoria
  * Purga de mensajes sin timestamp y validación estricta de integridad
- * Versión: v0.9.1
+ * Versión: v0.9.2
  */
 
 class CloudSaveManager {
@@ -139,7 +139,10 @@ class CloudSaveManager {
       console.log(`☁️ [PubNub Cloud] Consultando partida en canal: "${channel}"...`);
 
       const historyUrl = `https://ps.pubnub.com/v2/history/sub-key/${subKey}/channel/${channel}?count=100&include_token=true`;
-      const res = await fetch(historyUrl);
+      const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      const timeoutId = controller ? setTimeout(() => controller.abort(), 1500) : null;
+      const res = await fetch(historyUrl, controller ? { signal: controller.signal } : {});
+      if (timeoutId) clearTimeout(timeoutId);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const json = await res.json();
@@ -315,7 +318,7 @@ class CloudSaveManager {
         chunkIndex: i,
         totalChunks: totalChunks,
         isVerifiedSave: true,
-        version: 'v0.9.1',
+        version: 'v0.9.2',
         data: chunk
       };
 
