@@ -1,7 +1,8 @@
 /**
  * NDS Web Emulator - Save Manager
- * Gestor de persistencia robusta, Bóveda Time-Machine de backups, importación/exportación y sincronización en disco
- * Versión: v0.8.4
+ * Gestor de persistencia directa: 1 único save local (.sav) y 1 respaldo en la nube
+ * Elimina versiones antiguas, historiales y conflictos de sobreescritura
+ * Versión: v0.9.0
  */
 
 class SaveManager {
@@ -23,6 +24,7 @@ class SaveManager {
   async initStorage() {
     await this.initIndexedDB();
     await this.checkStoragePersistence();
+    await this.purgeOldLegacySaves();
   }
 
   /**
@@ -49,7 +51,7 @@ class SaveManager {
   }
 
   /**
-   * Inicializa IndexedDB v4 con soporte para Bóveda Histórica de Backups (Time-Machine)
+   * Inicializa IndexedDB con almacenes limpios
    */
   async initIndexedDB() {
     return new Promise((resolve, reject) => {
@@ -68,13 +70,6 @@ class SaveManager {
         }
         if (!db.objectStoreNames.contains('roms')) {
           db.createObjectStore('roms', { keyPath: 'name' });
-        }
-        // Almacén de Bóveda Histórica de Backups (v4)
-        if (!db.objectStoreNames.contains('backups')) {
-          const backupStore = db.createObjectStore('backups', { keyPath: 'id' });
-          backupStore.createIndex('romName', 'romName', { unique: false });
-          backupStore.createIndex('timestamp', 'timestamp', { unique: false });
-          backupStore.createIndex('source', 'source', { unique: false });
         }
       };
 
@@ -96,6 +91,61 @@ class SaveManager {
   }
 
   /**
+   * Purga definitiva de partidas antiguas, versiones históricas y claves duplicadas
+   * Deja EXACTAMENTE un único guardado principal por juego (.sav)
+   */
+  async purgeOldLegacySaves() {
+    if (!this.db) return;
+
+    try {
+      // 1. Limpiar almacén 'backups' si todavía existe en la base de datos
+      if (this.db.objectStoreNames.contains('backups')) {
+        try {
+          const bTx = this.db.transaction('backups', 'readwrite');
+          bTx.objectStore('backups').clear();
+        } catch (e) {}
+      }
+
+      // 2. Limpiar claves duplicadas/antiguas en 'saves'
+      const tx = this.db.transaction('saves', 'readwrite');
+      const store = tx.objectStore('saves');
+
+      const allRecords = await new Promise((res) => {
+        const req = store.getAll();
+        req.onsuccess = () => res(req.result || []);
+        req.onerror = () => res([]);
+      });
+
+      const legacyKeysToDelete = [
+        'game.sav',
+        'game.srm',
+        'game.dsv',
+        'default.sav',
+        'default.srm'
+      ];
+
+      for (const rec of allRecords) {
+        if (!rec || !rec.name) continue;
+        const name = rec.name;
+
+        // Eliminar claves genéricas o snapshots antiguos
+        if (legacyKeysToDelete.includes(name) ||
+            name.startsWith('last_known_good_') ||
+            name.startsWith('backup_') ||
+            name.endsWith('.srm') ||
+            name.endsWith('.dsv')) {
+          store.delete(name);
+          console.log(`🧹 [Limpieza] Clave antigua eliminada: ${name}`);
+        }
+      }
+
+      console.log('🧹 [Limpieza] Base de datos saneada: Solo se conservan saves .sav únicos.');
+    } catch (err) {
+      console.warn('Error en purgeOldLegacySaves:', err);
+    }
+  }
+
+  /**
    * Calcula un hash rápido FNV-1a de 32-bit de los datos binarios
    */
   computeHash(data) {
@@ -113,19 +163,18 @@ class SaveManager {
   }
 
   /**
-   * Valida si un buffer de guardado contiene datos de SRAM reales
-   * Devuelve true si no es 100% ceros ni 100% 0xFF (memoria no inicializada)
+   * Valida si un buffer contiene datos reales de guardado NDS
    */
-  isSramValidAndProgressed(data) {
+  isValidSaveBuffer(data) {
     if (!data) return false;
     const uint8 = data instanceof Uint8Array ? data : (data instanceof ArrayBuffer ? new Uint8Array(data) : null);
     if (!uint8 || uint8.byteLength < 512) return false;
 
     let hasNonZero = false;
     let hasNonFF = false;
-    const len = uint8.byteLength;
+    const sampleLimit = Math.min(uint8.byteLength, 131072);
 
-    for (let i = 0; i < len; i++) {
+    for (let i = 0; i < sampleLimit; i++) {
       const b = uint8[i];
       if (b !== 0x00) hasNonZero = true;
       if (b !== 0xFF) hasNonFF = true;
@@ -136,623 +185,239 @@ class SaveManager {
   }
 
   /**
-   * Crea una copia de seguridad histórica (Snapshot) en la Bóveda de IndexedDB
+   * Alias de compatibilidad
    */
-  async createBackupSnapshot(romName, data, source = 'auto', note = '') {
-    if (!this.db || !data) return null;
-    const uint8 = data instanceof Uint8Array ? data : new Uint8Array(data);
-    if (uint8.byteLength === 0) return null;
-
-    const baseName = this.sanitizeName(romName || this.currentRomName);
-    const hash = this.computeHash(uint8);
-    const now = Date.now();
-
-    try {
-      const recentBackups = await this.getBackupsForRom(baseName);
-      if (recentBackups.length > 0 && recentBackups[0].hash === hash && (now - recentBackups[0].timestamp < 15000)) {
-        return recentBackups[0];
-      }
-
-      const backupRecord = {
-        id: `backup_${baseName}_${now}_${Math.random().toString(36).substring(2, 6)}`,
-        romName: baseName,
-        gameTitle: romName || this.currentRomName,
-        timestamp: now,
-        size: uint8.byteLength,
-        hash: hash,
-        source: source,
-        note: note || '',
-        data: uint8
-      };
-
-      const tx = this.db.transaction('backups', 'readwrite');
-      tx.objectStore('backups').put(backupRecord);
-
-      await new Promise((res) => {
-        tx.oncomplete = res;
-        tx.onerror = res;
-      });
-
-      console.log(`🛡️ [Bóveda Time-Machine] Snapshot creado: ${backupRecord.id} (${source}, ${uint8.byteLength} bytes)`);
-      this.cleanupOldAutoBackups(baseName, 30);
-
-      return backupRecord;
-    } catch (err) {
-      console.warn('Error guardando snapshot en Bóveda:', err);
-      return null;
-    }
+  isSramValidAndProgressed(data) {
+    return this.isValidSaveBuffer(data);
   }
 
   /**
-   * Limpia snapshots automáticos antiguos manteniendo un límite máximo
+   * Guarda directamente en IndexedDB (Único guardado local por juego)
    */
-  async cleanupOldAutoBackups(romName, maxCount = 30) {
-    if (!this.db) return;
-    try {
-      const backups = await this.getBackupsForRom(romName);
-      const autoBackups = backups.filter(b => b.source === 'auto');
-
-      if (autoBackups.length > maxCount) {
-        const toDelete = autoBackups.slice(maxCount);
-        const tx = this.db.transaction('backups', 'readwrite');
-        const store = tx.objectStore('backups');
-        toDelete.forEach(b => store.delete(b.id));
-      }
-    } catch (err) {
-      console.warn('Error en limpieza de snapshots antiguos:', err);
-    }
-  }
-
-  /**
-   * Obtiene la lista completa de copias de seguridad de una ROM ordenadas por fecha descendente
-   */
-  async getBackupsForRom(romName) {
-    if (!this.db) return [];
-    const baseName = this.sanitizeName(romName || this.currentRomName);
+  async saveToIndexedDB(name, data, timestamp = null) {
+    if (!this.db || !data) return false;
+    const uint8 = data instanceof Uint8Array ? data : (data instanceof ArrayBuffer ? new Uint8Array(data) : null);
+    if (!uint8 || uint8.byteLength === 0) return false;
 
     return new Promise((resolve) => {
       try {
-        const tx = this.db.transaction('backups', 'readonly');
-        const store = tx.objectStore('backups');
-        const index = store.index('romName');
-        const req = index.getAll(baseName);
-
-        req.onsuccess = () => {
-          const list = req.result || [];
-          list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-          resolve(list);
+        const tx = this.db.transaction('saves', 'readwrite');
+        tx.objectStore('saves').put({
+          name: name,
+          data: uint8,
+          size: uint8.byteLength,
+          hash: this.computeHash(uint8),
+          timestamp: Number(timestamp) || Date.now()
+        });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = (e) => {
+          console.warn(`Error en saveToIndexedDB para ${name}:`, e);
+          resolve(false);
         };
-        req.onerror = () => resolve([]);
       } catch (err) {
-        resolve([]);
-      }
-    });
-  }
-
-  /**
-   * Obtiene todas las copias de seguridad existentes de todos los juegos
-   */
-  async getAllBackups() {
-    if (!this.db) return [];
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction('backups', 'readonly');
-        const store = tx.objectStore('backups');
-        const req = store.getAll();
-
-        req.onsuccess = () => {
-          const list = req.result || [];
-          list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-          resolve(list);
-        };
-        req.onerror = () => resolve([]);
-      } catch (err) {
-        resolve([]);
-      }
-    });
-  }
-
-  /**
-   * Restaura una copia de seguridad específica desde la Bóveda hacia el juego activo
-   */
-  async restoreBackup(backupId) {
-    if (!this.db || !backupId) return false;
-
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction('backups', 'readonly');
-        const store = tx.objectStore('backups');
-        const req = store.get(backupId);
-
-        req.onsuccess = async () => {
-          const record = req.result;
-          if (!record || !record.data) {
-            this.showToast('⚠️ No se encontró la copia de seguridad seleccionada.', 'warning');
-            resolve(false);
-            return;
-          }
-
-          const baseName = record.romName || this.sanitizeName(this.currentRomName);
-          const uint8 = record.data instanceof Uint8Array ? record.data : new Uint8Array(record.data);
-
-          // 1. Crear snapshot de seguridad del estado actual antes de restaurar
-          const currentSave = await this.getLocalSaveRecord(baseName);
-          if (currentSave && currentSave.data) {
-            await this.createBackupSnapshot(baseName, currentSave.data, 'manual', 'Pre-restauración de snapshot');
-          }
-
-          // 2. Sobreescribir en almacenamiento primario de IndexedDB
-          await this.saveToIndexedDB(`${baseName}.sav`, uint8);
-          await this.saveToIndexedDB(`game.sav`, uint8);
-          await this.saveToIndexedDB(`last_known_good_${baseName}.sav`, uint8);
-
-          // 3. Si el emulador está corriendo, inyectar inmediatamente en el core WASM
-          if (window.EJS_emulator?.gameManager?.FS) {
-            try {
-              const gm = window.EJS_emulator.gameManager;
-              const targetPath = gm.getSaveFilePath?.() || `/data/saves/${baseName}.sav`;
-              if (gm.FS.analyzePath('/data/saves').exists) {
-                gm.FS.writeFile(targetPath, uint8);
-                gm.FS.writeFile(`/data/saves/game.sav`, uint8);
-                if (typeof gm.loadSaveFiles === 'function') gm.loadSaveFiles();
-              }
-            } catch (e) {
-              console.warn('Error inyectando copia restaurada en emulador:', e);
-            }
-          }
-
-          // 4. Si hay carpeta vinculada en disco, escribir
-          if (this.directoryHandle) {
-            try {
-              const fileHandle = await this.directoryHandle.getFileHandle(`${baseName}.sav`, { create: true });
-              const writable = await fileHandle.createWritable();
-              await writable.write(uint8);
-              await writable.close();
-            } catch (e) {}
-          }
-
-          // 5. Subir a la nube como versión más reciente
-          if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
-            window.cloudSaveManager.uploadCloudSave(uint8, baseName);
-          }
-
-          const timeStr = new Date(record.timestamp).toLocaleTimeString();
-          this.showToast(`🔄 Partida restaurada con éxito (${timeStr})`, 'success');
-          resolve(true);
-        };
-
-        req.onerror = () => resolve(false);
-      } catch (err) {
+        console.warn('Error iniciando transacción en IndexedDB:', err);
         resolve(false);
       }
     });
   }
 
   /**
-   * Descarga un archivo .sav de una copia de seguridad histórica específica
+   * Obtiene un archivo de guardado de IndexedDB
    */
-  async exportBackupAsFile(backupId) {
-    if (!this.db || !backupId) return;
-    try {
-      const tx = this.db.transaction('backups', 'readonly');
-      const store = tx.objectStore('backups');
-      const req = store.get(backupId);
-
-      req.onsuccess = () => {
-        const record = req.result;
-        if (record && record.data) {
-          const dateStr = new Date(record.timestamp).toISOString().replace(/[:.]/g, '-').substring(0, 19);
-          const filename = `${record.romName || 'save'}_backup_${dateStr}.sav`;
-          this.generateSavFileDownload(record.data, filename);
-        }
-      };
-    } catch (e) {
-      console.warn('Error exportando backup:', e);
-    }
-  }
-
-  /**
-   * Elimina una copia de seguridad individual de la Bóveda
-   */
-  async deleteBackup(backupId) {
-    if (!this.db || !backupId) return false;
+  async getFromIndexedDB(name) {
+    if (!this.db || !name) return null;
     return new Promise((resolve) => {
       try {
-        const tx = this.db.transaction('backups', 'readwrite');
-        const req = tx.objectStore('backups').delete(backupId);
-        req.onsuccess = () => resolve(true);
-        req.onerror = () => resolve(false);
+        const tx = this.db.transaction('saves', 'readonly');
+        const req = tx.objectStore('saves').get(name);
+        req.onsuccess = () => {
+          if (req.result && req.result.data) {
+            const uint8 = req.result.data instanceof Uint8Array ? req.result.data : new Uint8Array(req.result.data);
+            resolve(uint8);
+          } else {
+            resolve(null);
+          }
+        };
+        req.onerror = () => resolve(null);
       } catch (e) {
-        resolve(false);
+        resolve(null);
       }
     });
   }
 
   /**
-   * Obtiene el registro completo de guardado local de IndexedDB con metadatos y fallback a Bóveda
+   * Obtiene el registro completo de la partida local
    */
   async getLocalSaveRecord(romName) {
     if (!this.db) return null;
     const baseName = this.sanitizeName(romName || this.currentRomName);
-    const cleanRom = (romName || '').replace(/\.(nds|zip|7z)$/i, '');
+    const filename = `${baseName}.sav`;
 
-    const candidateKeys = [
-      `${baseName}.sav`,
-      `${baseName}.srm`,
-      `${baseName}.dsv`,
-      `${cleanRom}.sav`,
-      `${cleanRom}.srm`,
-      `${cleanRom}.nds.sav`,
-      `${cleanRom}.nds.srm`,
-      `${romName}.sav`,
-      `${romName}.srm`,
-      `last_known_good_${baseName}.sav`,
-      `game.sav`,
-      `game.srm`,
-      baseName
-    ];
-
-    try {
-      const tx = this.db.transaction('saves', 'readonly');
-      const store = tx.objectStore('saves');
-
-      const allRecords = await new Promise((res) => {
-        const req = store.getAll();
-        req.onsuccess = () => res(req.result || []);
-        req.onerror = () => res([]);
-      });
-
-      // Filtrar registros relevantes para este juego que tengan SRAM válida
-      const cleanTarget = baseName.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const validRecords = allRecords.filter(rec => {
-        if (!rec || !rec.data) return false;
-        const byteLen = rec.data.byteLength || rec.data.length || 0;
-        if (byteLen < 512 || !this.isSramValidAndProgressed(rec.data)) return false;
-
-        const recName = (rec.name || '').toLowerCase();
-        const cleanRecName = recName.replace(/[^a-z0-9]/g, '');
-        return candidateKeys.includes(rec.name) ||
-               cleanRecName.includes(cleanTarget) ||
-               cleanTarget.includes(cleanRecName);
-      });
-
-      // Ordenar por fecha de modificación descendente: EL MÁS RECIENTE SIEMPRE TIENE PRIORIDAD
-      if (validRecords.length > 0) {
-        validRecords.sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
-        const newest = validRecords[0];
-        const timeFormatted = newest.timestamp ? new Date(Number(newest.timestamp)).toLocaleTimeString() : 'Sin fecha';
-        console.log(`[Save Record] Encontrado guardado local más reciente: "${newest.name}" (${timeFormatted})`);
-        return newest;
-      }
-
-      // 2. Si en 'saves' no hay datos con progreso, buscar en la Bóveda de 'backups' (Time-Machine)
-      const backups = await this.getBackupsForRom(baseName);
-      if (backups && backups.length > 0) {
-        for (const b of backups) {
-          if (b && b.data && this.isSramValidAndProgressed(b.data)) {
-            const byteLen = b.data.byteLength || b.data.length || 0;
-            return {
-              name: `${baseName}.sav`,
-              data: b.data,
-              size: byteLen,
-              timestamp: Number(b.timestamp) || Date.now(),
-              hash: b.hash
-            };
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('saves', 'readonly');
+        const req = tx.objectStore('saves').get(filename);
+        req.onsuccess = () => {
+          if (req.result && req.result.data) {
+            resolve(req.result);
+          } else {
+            resolve(null);
           }
-        }
+        };
+        req.onerror = () => resolve(null);
+      } catch (e) {
+        resolve(null);
       }
-
-      return null;
-    } catch (e) {
-      console.warn('Error en getLocalSaveRecord:', e);
-      return null;
-    }
+    });
   }
 
   /**
-   * Actualiza la UI de estado según la plataforma (iOS vs Desktop con File System API)
+   * Elimina la partida guardada localmente
    */
-  updatePlatformStatusUI() {
-    const label = document.getElementById('save-folder-label');
-    const statusItem = document.getElementById('save-folder-status');
-    const modalPath = document.getElementById('modal-folder-path');
+  async deleteSave(romName) {
+    const baseName = this.sanitizeName(romName || this.currentRomName);
+    const filename = `${baseName}.sav`;
 
-    if (this.isIOS) {
-      if (label) label.textContent = 'Guardado: iOS Bóveda & DB';
-      if (statusItem) {
-        statusItem.classList.add('active');
-        statusItem.setAttribute('title', 'Bóveda de guardados persistente con Time-Machine y exportación a Archivos de iOS');
-      }
-      if (modalPath) modalPath.textContent = 'Modo iOS: Partidas guardadas en memoria persistente protegida';
+    if (this.db) {
+      try {
+        const tx = this.db.transaction('saves', 'readwrite');
+        tx.objectStore('saves').delete(filename);
+      } catch (e) {}
     }
+
+    window._activeRomSaveData = null;
+    this.lastSavedHash = null;
+    if (window.app) window.app.lastSavedHash = null;
+
+    this.showToast(`🗑️ Partida local "${filename}" eliminada.`, 'info');
+    return true;
   }
 
   /**
-   * Intenta recuperar el DirectoryHandle guardado de la sesión anterior
+   * Carga la partida existente (.sav)
+   * REGLA ESTRICTA: El guardado LOCAL es el rey.
+   * La Nube es ÚNICAMENTE un respaldo de emergencia por si el local no existe.
    */
-  async loadSavedHandle() {
-    if (!('showDirectoryPicker' in window)) return;
-    try {
-      const tx = this.db.transaction('handles', 'readonly');
-      const store = tx.objectStore('handles');
-      const req = store.get('soulsilver_dir');
-      req.onsuccess = async () => {
-        if (req.result && req.result.handle) {
-          const handle = req.result.handle;
-          try {
-            const opts = { mode: 'readwrite' };
-            if ((await handle.queryPermission(opts)) === 'granted') {
-              this.directoryHandle = handle;
-              this.updateFolderStatusUI(handle.name || 'SoulSilver', true);
-            }
-          } catch (e) {
-            console.log('Permiso pendiente de verificación para handle de carpeta');
-          }
-        }
-      };
-    } catch (err) {
-      console.log('No se pudo restaurar el DirectoryHandle guardado:', err);
-    }
-  }
+  async loadExistingSave(romName) {
+    const baseName = this.sanitizeName(romName || this.currentRomName);
+    const filename = `${baseName}.sav`;
 
-  /**
-   * Solicita al usuario seleccionar la carpeta de guardados en disco (ej. C:\Users\cgzla\Documents\SoulSilver)
-   */
-  async linkSoulSilverFolder() {
-    if (!('showDirectoryPicker' in window)) {
-      if (this.isIOS) {
-        this.showToast('📱 En iOS las partidas se protegen automáticamente en la Bóveda local y en la Nube.', 'info');
-      } else {
-        this.showToast('ℹ️ Tu navegador no soporta File System Access API directa. Las partidas se guardan con seguridad en la Bóveda.', 'info');
-      }
-      return false;
-    }
+    // 1. Cargar el guardado LOCAL único desde IndexedDB
+    let localData = await this.getFromIndexedDB(filename);
 
-    try {
-      const handle = await window.showDirectoryPicker({
-        id: 'nds_soulsilver_saves',
-        mode: 'readwrite',
-        startIn: 'documents'
-      });
-
-      this.directoryHandle = handle;
-
-      if (this.db) {
-        const tx = this.db.transaction('handles', 'readwrite');
-        tx.objectStore('handles').put({ id: 'soulsilver_dir', handle: handle });
-      }
-
-      this.updateFolderStatusUI(handle.name, true);
-      this.showToast(`📁 Carpeta "${handle.name}" vinculada con éxito. Partidas sincronizadas directamente.`, 'success');
-      return true;
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error('Error al vincular carpeta:', err);
-        this.showToast('Error al vincular carpeta en disco.', 'warning');
-      }
-      return false;
-    }
-  }
-
-  /**
-   * Actualiza el indicador visual de estado de la carpeta de guardado
-   */
-  updateFolderStatusUI(name, isLinked) {
-    const label = document.getElementById('save-folder-label');
-    const statusItem = document.getElementById('save-folder-status');
-    const modalPath = document.getElementById('modal-folder-path');
-
-    if (label && statusItem) {
-      if (isLinked) {
-        label.textContent = `SoulSilver: ${name} (OK)`;
-        statusItem.classList.add('active');
-      } else if (!this.isIOS) {
-        label.textContent = 'SoulSilver: Sin vincular';
-        statusItem.classList.remove('active');
+    // 2. Si no está en IndexedDB, buscar en la carpeta en disco vinculada
+    if (!localData && this.directoryHandle) {
+      localData = await this.readFromDisk(filename);
+      if (localData && this.isValidSaveBuffer(localData)) {
+        await this.saveToIndexedDB(filename, localData);
       }
     }
 
-    if (modalPath && !this.isIOS) {
-      modalPath.textContent = isLinked ? `Ruta vinculada: ${name}` : 'Ruta actual: No vinculada';
+    // 3. SI EXISTE GUARDADO LOCAL VÁLIDO: USARLO SIEMPRE
+    if (localData && localData.byteLength >= 512 && this.isValidSaveBuffer(localData)) {
+      console.log(`✅ [Save Load] Guardado LOCAL cargado (${localData.byteLength} bytes).`);
+      this.lastSavedHash = this.computeHash(localData);
+      window._activeRomSaveData = localData;
+
+      // Respaldar en la nube en segundo plano
+      if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
+        window.cloudSaveManager.uploadCloudSave(localData, baseName).catch(() => {});
+      }
+
+      this.showToast(`💾 Partida local cargada con éxito`, 'success');
+      return localData;
     }
+
+    // 4. SOLO SI NO HAY GUARDADO LOCAL: Buscar respaldo de emergencia en la Nube
+    console.log('ℹ️ [Save Load] No hay partida local. Buscando respaldo en la Nube...');
+    let cloudResult = null;
+    if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
+      try {
+        cloudResult = await window.cloudSaveManager.fetchLatestCloudSave(romName);
+      } catch (e) {
+        console.warn('Error consultando nube:', e);
+      }
+    }
+
+    if (cloudResult && cloudResult.data && cloudResult.data.byteLength >= 512 && this.isValidSaveBuffer(cloudResult.data)) {
+      console.log(`☁️ [Save Load] Respaldo de la Nube recuperado (${cloudResult.data.byteLength} bytes). Restaurando a local...`);
+      await this.saveToIndexedDB(filename, cloudResult.data, cloudResult.timestamp);
+      if (this.directoryHandle) {
+        this.writeToDisk(filename, cloudResult.data).catch(() => {});
+      }
+      this.lastSavedHash = this.computeHash(cloudResult.data);
+      window._activeRomSaveData = cloudResult.data;
+      this.showToast(`☁️ Partida recuperada desde la Nube (Respaldo)`, 'success');
+      return cloudResult.data;
+    }
+
+    console.log('ℹ️ [Save Load] No hay partida previa. Iniciando juego nuevo.');
+    window._activeRomSaveData = null;
+    return null;
   }
 
   /**
-   * Inicializa los listeners del modal de confirmación de descarga de guardado .sav
+   * Guarda los datos de la partida (.sav)
+   * Escribe en el único save local, en disco y en la nube en segundo plano
    */
-  initSaveConfirmModal() {
-    const modal = document.getElementById('save-confirm-modal');
-    const btnConfirm = document.getElementById('btn-confirm-save-download');
-    const btnCancel = document.getElementById('btn-cancel-save-download');
-    const btnClose = document.getElementById('btn-close-save-confirm');
-    const chkAuto = document.getElementById('chk-auto-download-sav');
-
-    const closeModal = () => {
-      if (modal) modal.style.display = 'none';
-    };
-
-    if (btnConfirm) {
-      btnConfirm.addEventListener('click', () => {
-        if (chkAuto && chkAuto.checked) {
-          this.saveMode = 'auto_download';
-          localStorage.setItem('nds_save_mode', 'auto_download');
-          const sel = document.getElementById('save-mode-selector');
-          if (sel) sel.value = 'auto_download';
-        }
-        if (this.pendingSaveData && this.pendingSaveFilename) {
-          this.generateSavFileDownload(this.pendingSaveData, this.pendingSaveFilename);
-        }
-        closeModal();
-      });
-    }
-
-    if (btnCancel) {
-      btnCancel.addEventListener('click', () => {
-        if (chkAuto && !chkAuto.checked) {
-          this.saveMode = 'silent';
-          localStorage.setItem('nds_save_mode', 'silent');
-          const sel = document.getElementById('save-mode-selector');
-          if (sel) sel.value = 'silent';
-        }
-        closeModal();
-      });
-    }
-
-    if (btnClose) btnClose.addEventListener('click', closeModal);
-  }
-
-  /**
-   * Muestra el modal emergente para confirmar la descarga del archivo .sav
-   */
-  showSaveConfirmationModal(saveData, filename) {
-    const now = Date.now();
-    if (now - this.lastModalTriggerTime < 2500) return;
-    this.lastModalTriggerTime = now;
-
-    this.pendingSaveData = saveData;
-    this.pendingSaveFilename = filename;
-
-    const modal = document.getElementById('save-confirm-modal');
-    const nameEl = document.getElementById('save-modal-filename');
-    const detailsEl = document.getElementById('save-modal-file-details');
-    const chkAuto = document.getElementById('chk-auto-download-sav');
-
-    if (nameEl) nameEl.textContent = filename;
-    if (detailsEl) detailsEl.textContent = filename;
-    if (chkAuto) chkAuto.checked = true;
-
-    if (modal) {
-      modal.style.display = 'flex';
-    }
-  }
-
-  /**
-   * Guarda los datos de partida con protección acorazada:
-   * 1. Validación de SRAM real vs vacía
-   * 2. Snapshot de seguridad previo antes de sobreescribir
-   * 3. Escritura en múltiples ranuras de IndexedDB
-   * 4. Escritura en disco si está vinculado
-   * 5. Sincronización en la nube PubNub con metadatos
-   */
-  async saveGameData(saveData, customFileName, isAutoSave = false, forceDownload = false, showPrompt = false, source = 'local') {
-    if (!saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) {
-      return false;
-    }
+  async saveGameData(saveData, customFileName = null, isAutoSave = false, forceDownload = false, showPrompt = false, source = 'manual') {
+    if (!saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) return false;
 
     const uint8Data = saveData instanceof Uint8Array ? saveData : (saveData instanceof ArrayBuffer ? new Uint8Array(saveData) : null);
-    if (!uint8Data) return false;
+    if (!uint8Data || uint8Data.byteLength < 512) return false;
 
-    // VALIDACIÓN ANTI-VACÍO: Si los datos son SRAM en blanco o corruptos (100% 0x00 o 100% 0xFF), nunca pisar
-    if (!this.isSramValidAndProgressed(uint8Data)) {
-      console.warn('🛡️ [Blindaje Anti-Vacío] Se evitó guardar un buffer de SRAM vacío o no inicializado.');
+    if (!this.isValidSaveBuffer(uint8Data)) {
+      console.warn('🛡️ Se evitó guardar un buffer de SRAM no inicializado.');
       return false;
     }
 
     const baseName = this.sanitizeName(this.currentRomName);
-    const filename = customFileName || `${baseName}.sav`;
-    const saveTimestamp = Date.now();
+    const filename = `${baseName}.sav`;
     const newHash = this.computeHash(uint8Data);
 
-    // Evitar escrituras repetidas redundantes con idéntico hash
+    // Evitar escrituras idénticas repetidas en auto-guardado
     if (isAutoSave && this.lastSavedHash === newHash) {
       window._activeRomSaveData = uint8Data;
       return true;
     }
+
     this.lastSavedHash = newHash;
     window._activeRomSaveData = uint8Data;
     if (window.app) {
       window.app.lastSavedHash = window.app.computeSaveHash(uint8Data);
     }
 
-    // 1. CAPA TIME-MACHINE: Comprobar guardado anterior y crear Snapshot de respaldo antes de sobreescribir
-    try {
-      const priorSave = await this.getLocalSaveRecord(baseName);
-      if (priorSave && priorSave.data && this.computeHash(priorSave.data) !== newHash) {
-        await this.createBackupSnapshot(
-          this.currentRomName,
-          priorSave.data,
-          isAutoSave ? 'auto' : 'manual',
-          isAutoSave ? 'Respaldo automático previo' : 'Respaldo manual'
-        );
-      }
-    } catch (e) {}
+    const saveTimestamp = Date.now();
 
-    // 2. Inyectar y mantener actualizado en la memoria virtual FS de EmulatorJS en todas las rutas (.sav y .srm)
+    // 1. Guardar en el ÚNICO registro de IndexedDB
+    await this.saveToIndexedDB(filename, uint8Data, saveTimestamp);
+
+    // 2. Inyectar en la memoria virtual FS de RetroArch
     if (window.app && typeof window.app.injectSaveFilesToFS === 'function' && window.EJS_emulator?.gameManager?.FS) {
       window.app.injectSaveFilesToFS(window.EJS_emulator.gameManager.FS, uint8Data, this.currentRomName);
     }
 
-    // 3. Guardado en PARALELO y sincronizado: Local (IndexedDB) + Disco + Nube (PubNub) con idéntico timestamp
-    const parallelWrites = [];
-
-    parallelWrites.push(this.saveMultipleToIndexedDB([
-      { name: filename, data: uint8Data, timestamp: saveTimestamp, hash: newHash },
-      { name: `${baseName}.sav`, data: uint8Data, timestamp: saveTimestamp, hash: newHash },
-      { name: `${baseName}.srm`, data: uint8Data, timestamp: saveTimestamp, hash: newHash },
-      { name: `${baseName}.dsv`, data: uint8Data, timestamp: saveTimestamp, hash: newHash },
-      { name: `game.sav`, data: uint8Data, timestamp: saveTimestamp, hash: newHash },
-      { name: `game.srm`, data: uint8Data, timestamp: saveTimestamp, hash: newHash },
-      { name: `last_known_good_${baseName}.sav`, data: uint8Data, timestamp: saveTimestamp, hash: newHash }
-    ]));
-
+    // 3. Escribir en carpeta en disco si está vinculada
     if (this.directoryHandle) {
-      parallelWrites.push(this.writeToDisk(filename, uint8Data));
+      this.writeToDisk(filename, uint8Data).catch(() => {});
     }
 
+    // 4. Subir a la Nube (PubNub) como copia de respaldo
     if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
-      parallelWrites.push(window.cloudSaveManager.uploadCloudSave(uint8Data, this.currentRomName, saveTimestamp));
+      window.cloudSaveManager.uploadCloudSave(uint8Data, this.currentRomName, saveTimestamp).catch(() => {});
     }
 
-    await Promise.allSettled(parallelWrites);
-
-    // 4. Modo de guardado configurado (Descarga / Modal / Silencioso)
     if (forceDownload) {
       this.generateSavFileDownload(uint8Data, filename);
     } else if (!isAutoSave) {
       if (this.saveMode === 'auto_download') {
         this.generateSavFileDownload(uint8Data, filename);
-      } else if (this.saveMode === 'confirm_modal' || showPrompt) {
-        this.showSaveConfirmationModal(uint8Data, filename);
-      } else if (this.saveMode === 'silent') {
-        this.showToast(`💾 Partida guardada en local y sincronizada a la nube (${filename})`, 'success');
+      } else {
+        this.showToast(`💾 Partida guardada con éxito (${filename})`, 'success');
       }
     }
 
     return true;
-  }
-
-  /**
-   * Genera la descarga segura de un archivo .sav
-   */
-  generateSavFileDownload(saveData, filename) {
-    if (!saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) {
-      this.showToast('⚠️ No hay datos de partida listos para descargar.', 'warning');
-      return;
-    }
-
-    const now = Date.now();
-    if (this.lastDownloadTime && (now - this.lastDownloadTime < 2500)) {
-      return;
-    }
-    this.lastDownloadTime = now;
-
-    const blob = saveData instanceof Blob ? saveData : new Blob([saveData], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      try { document.body.removeChild(a); } catch (e) {}
-      URL.revokeObjectURL(url);
-    }, 10000);
-
-    if (this.isIOS) {
-      this.showToast(`💾 Archivo "${filename}" generado en tu iPhone.`, 'success');
-    } else {
-      this.showToast(`📥 Descargando archivo de guardado: ${filename}`, 'success');
-    }
   }
 
   /**
@@ -773,268 +438,31 @@ class SaveManager {
   }
 
   /**
-   * Guarda un solo archivo en IndexedDB
+   * Lee un archivo directamente del disco vinculado
    */
-  async saveToIndexedDB(name, data, customTimestamp = null) {
-    if (!this.db || !data) return false;
-    const uint8 = data instanceof Uint8Array ? data : (data instanceof ArrayBuffer ? new Uint8Array(data) : null);
-    if (!uint8 || uint8.byteLength === 0) return false;
-
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction('saves', 'readwrite');
-        tx.objectStore('saves').put({
-          name: name,
-          data: uint8,
-          size: uint8.byteLength,
-          hash: this.computeHash(uint8),
-          timestamp: Number(customTimestamp) || Date.now()
-        });
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = (e) => {
-          console.warn(`Error en saveToIndexedDB para ${name}:`, e);
-          resolve(false);
-        };
-      } catch (err) {
-        console.warn('Error iniciando transacción en IndexedDB:', err);
-        resolve(false);
-      }
-    });
-  }
-
-  /**
-   * Guarda múltiples registros en IndexedDB en una sola transacción atómica
-   */
-  async saveMultipleToIndexedDB(records) {
-    if (!this.db || !records || records.length === 0) return false;
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction('saves', 'readwrite');
-        const store = tx.objectStore('saves');
-        for (const item of records) {
-          if (!item.data || item.data.byteLength === 0) continue;
-          const uint8 = item.data instanceof Uint8Array ? item.data : new Uint8Array(item.data);
-          store.put({
-            name: item.name,
-            data: uint8,
-            size: uint8.byteLength,
-            hash: item.hash || this.computeHash(uint8),
-            timestamp: Number(item.timestamp) || Date.now()
-          });
-        }
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = (e) => {
-          console.warn('Error en saveMultipleToIndexedDB:', e);
-          resolve(false);
-        };
-      } catch (err) {
-        console.warn('Error iniciando transacción en saveMultipleToIndexedDB:', err);
-        resolve(false);
-      }
-    });
-  }
-
-  /**
-   * Guarda un estado rápido (Savestate) en IndexedDB
-   */
-  async saveQuickState(name, stateData) {
-    if (!this.db || !stateData) return;
+  async readFromDisk(filename) {
+    if (!this.directoryHandle) return null;
     try {
-      const tx = this.db.transaction('states', 'readwrite');
-      tx.objectStore('states').put({
-        name: name,
-        data: stateData,
-        timestamp: Date.now()
-      });
-    } catch (err) {
-      console.warn('Error guardando state en IndexedDB:', err);
-    }
-  }
-
-  /**
-   * Recupera un estado rápido (Savestate) de IndexedDB
-   */
-  async loadQuickState(name) {
-    if (!this.db) return null;
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction('states', 'readonly');
-        const req = tx.objectStore('states').get(name);
-        req.onsuccess = () => {
-          if (req.result && req.result.data) {
-            resolve(req.result.data);
-          } else {
-            resolve(null);
-          }
-        };
-        req.onerror = () => resolve(null);
-      } catch (err) {
-        resolve(null);
+      const fileHandle = await this.directoryHandle.getFileHandle(filename);
+      const file = await fileHandle.getFile();
+      const buffer = await file.arrayBuffer();
+      if (buffer && buffer.byteLength >= 512) {
+        return new Uint8Array(buffer);
       }
-    });
-  }
-
-  /**
-   * Carga una partida existente (.sav/.srm) mediante Sincronización Inteligente Bidireccional:
-   * - Consulta local (IndexedDB / Disco) y Nube (PubNub) simultáneamente.
-   * - Compara timestamps numéricos y validez de contenido.
-   * - El más reciente siempre gana, actualizando en paralelo los demás destinos.
-   * - Si la nube está vacía o fallida, JAMÁS pisa el local.
-   */
-  async loadExistingSave(romName) {
-    const baseName = this.sanitizeName(romName || this.currentRomName);
-    const cleanRom = (romName || '').replace(/\.(nds|zip|7z)$/i, '');
-
-    // 1. Obtener partida local (IndexedDB)
-    const localRecord = await this.getLocalSaveRecord(baseName);
-    let localData = localRecord?.data ? (localRecord.data instanceof Uint8Array ? localRecord.data : new Uint8Array(localRecord.data)) : null;
-    let localTimestamp = Number(localRecord?.timestamp) || 0;
-
-    // 2. Comprobar en disco si hay carpeta vinculada (si es más nueva que IndexedDB)
-    if (this.directoryHandle) {
-      const candidateNames = [
-        `${baseName}.sav`, `${baseName}.srm`, `${baseName}.dsv`,
-        `${cleanRom}.sav`, `${cleanRom}.srm`, `${romName}.sav`, `${romName}.srm`,
-        `game.sav`, `game.srm`
-      ];
-      for (const fname of candidateNames) {
-        try {
-          const fileHandle = await this.directoryHandle.getFileHandle(fname);
-          const file = await fileHandle.getFile();
-          const arrayBuffer = await file.arrayBuffer();
-          if (arrayBuffer && arrayBuffer.byteLength >= 512) {
-            const diskData = new Uint8Array(arrayBuffer);
-            if (this.isSramValidAndProgressed(diskData) && (file.lastModified > localTimestamp || !localData)) {
-              localData = diskData;
-              localTimestamp = file.lastModified;
-              console.log(`[Save Load] Partida de disco más reciente encontrada: ${fname} (${new Date(localTimestamp).toLocaleTimeString()})`);
-            }
-            break;
-          }
-        } catch (err) {}
-      }
-    }
-
-    // 3. Consultar la Nube de PubNub (Cross-device Sync)
-    let cloudResult = null;
-    if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
-      try {
-        cloudResult = await window.cloudSaveManager.fetchLatestCloudSave(romName);
-      } catch (e) {
-        console.warn('Error consultando partida en PubNub Cloud:', e);
-      }
-    }
-
-    const hasCloud = Boolean(cloudResult && cloudResult.data && cloudResult.data.byteLength >= 512 && this.isSramValidAndProgressed(cloudResult.data));
-    const hasLocal = Boolean(localData && localData.byteLength >= 512 && this.isSramValidAndProgressed(localData));
-
-    const cloudData = hasCloud ? cloudResult.data : null;
-    const cloudTimestamp = hasCloud ? (Number(cloudResult.timestamp) || 0) : 0;
-
-    console.log(`[Save Sync Decision] Local (${localTimestamp > 0 ? new Date(localTimestamp).toLocaleString() : 'Ninguno'}) vs Nube (${cloudTimestamp > 0 ? new Date(cloudTimestamp).toLocaleString() : 'Ninguno'})`);
-
-    // CASO 1: AMBOS DISPONIBLES -> COMPARAR MARCA DE TIEMPO
-    if (hasCloud && hasLocal) {
-      if (cloudTimestamp > localTimestamp) {
-        // La NUBE es ESTRICTAMENTE MÁS NUEVA
-        console.log(`☁️ [Cloud Sync] La NUBE es más reciente (${new Date(cloudTimestamp).toLocaleString()} > ${new Date(localTimestamp).toLocaleString()}). Sincronizando a local...`);
-        await this.createBackupSnapshot(baseName, localData, 'local_pre_cloud_sync', 'Respaldo local previo a sincronización de nube');
-        await this.saveMultipleToIndexedDB([
-          { name: `${baseName}.sav`, data: cloudData, timestamp: cloudTimestamp },
-          { name: `${baseName}.srm`, data: cloudData, timestamp: cloudTimestamp },
-          { name: `${baseName}.dsv`, data: cloudData, timestamp: cloudTimestamp },
-          { name: `game.sav`, data: cloudData, timestamp: cloudTimestamp },
-          { name: `game.srm`, data: cloudData, timestamp: cloudTimestamp },
-          { name: `last_known_good_${baseName}.sav`, data: cloudData, timestamp: cloudTimestamp }
-        ]);
-        if (this.directoryHandle) {
-          this.writeToDisk(`${baseName}.sav`, cloudData).catch(() => {});
-        }
-        this.showToast(`☁️ Partida más reciente cargada de la Nube (${new Date(cloudTimestamp).toLocaleTimeString()})`, 'success');
-        this.lastSavedHash = this.computeHash(cloudData);
-        window._activeRomSaveData = cloudData;
-        return cloudData;
-      } else {
-        // El Guardado LOCAL es MÁS NUEVO O IGUAL
-        console.log(`💻 [Cloud Sync] El guardado LOCAL es más reciente o igual (${new Date(localTimestamp).toLocaleString()} >= ${new Date(cloudTimestamp).toLocaleString()}).`);
-        if (localTimestamp > cloudTimestamp) {
-          window.cloudSaveManager?.uploadCloudSave(localData, romName, localTimestamp);
-        }
-        this.showToast(`💻 Partida local más reciente cargada (${new Date(localTimestamp).toLocaleTimeString()})`, 'success');
-        this.lastSavedHash = this.computeHash(localData);
-        window._activeRomSaveData = localData;
-        return localData;
-      }
-    }
-
-    // CASO 2: SOLO NUBE DISPONIBLE
-    if (hasCloud && !hasLocal) {
-      console.log(`☁️ [Cloud Sync] Solo la Nube tiene datos válidos (${new Date(cloudTimestamp).toLocaleString()}). Descargando...`);
-      await this.saveMultipleToIndexedDB([
-        { name: `${baseName}.sav`, data: cloudData, timestamp: cloudTimestamp },
-        { name: `${baseName}.srm`, data: cloudData, timestamp: cloudTimestamp },
-        { name: `${baseName}.dsv`, data: cloudData, timestamp: cloudTimestamp },
-        { name: `game.sav`, data: cloudData, timestamp: cloudTimestamp },
-        { name: `game.srm`, data: cloudData, timestamp: cloudTimestamp },
-        { name: `last_known_good_${baseName}.sav`, data: cloudData, timestamp: cloudTimestamp }
-      ]);
-      this.showToast(`☁️ Partida descargada de la Nube (${new Date(cloudTimestamp).toLocaleTimeString()})`, 'success');
-      this.lastSavedHash = this.computeHash(cloudData);
-      window._activeRomSaveData = cloudData;
-      return cloudData;
-    }
-
-    // CASO 3: SOLO LOCAL DISPONIBLE
-    if (hasLocal && !hasCloud) {
-      console.log(`💻 [Cloud Sync] Solo guardado local disponible (${new Date(localTimestamp).toLocaleString()}). Sincronizando a la Nube...`);
-      window.cloudSaveManager?.uploadCloudSave(localData, romName, localTimestamp);
-      this.lastSavedHash = this.computeHash(localData);
-      window._activeRomSaveData = localData;
-      return localData;
-    }
-
-    // CASO 4: Fallback a Bóveda de Backups
-    const backups = await this.getBackupsForRom(baseName);
-    for (const b of backups) {
-      if (b && b.data && b.data.byteLength >= 512 && this.isSramValidAndProgressed(b.data)) {
-        console.log(`🛡️ [Bóveda Time-Machine] Recuperada partida de la Bóveda (${b.id})`);
-        const recoveredData = b.data instanceof Uint8Array ? b.data : new Uint8Array(b.data);
-        const bTimestamp = Number(b.timestamp) || Date.now();
-        await this.saveMultipleToIndexedDB([
-          { name: `${baseName}.sav`, data: recoveredData, timestamp: bTimestamp },
-          { name: `${baseName}.srm`, data: recoveredData, timestamp: bTimestamp },
-          { name: `game.sav`, data: recoveredData, timestamp: bTimestamp },
-          { name: `game.srm`, data: recoveredData, timestamp: bTimestamp }
-        ]);
-        window.cloudSaveManager?.uploadCloudSave(recoveredData, romName, bTimestamp);
-        this.showToast(`🛡️ Partida restaurada desde la Bóveda de Seguridad`, 'info');
-        this.lastSavedHash = this.computeHash(recoveredData);
-        window._activeRomSaveData = recoveredData;
-        return recoveredData;
-      }
-    }
-
-    window._activeRomSaveData = null;
+    } catch (e) {}
     return null;
   }
 
   /**
-   * Inyecta la partida previa (.sav/.srm) dentro del sistema de archivos virtual de Emscripten
+   * Inyecta la partida previa (.sav) dentro del sistema de archivos virtual de Emscripten
    */
   async injectSaveIntoEmulator(romName) {
     const saveData = await this.loadExistingSave(romName);
-    if (!saveData || saveData.byteLength === 0) {
-      console.log('No se encontraron datos de guardado previo para inyectar.');
-      return false;
-    }
+    if (!saveData || saveData.byteLength === 0) return false;
 
-    if (!window.EJS_emulator || !window.EJS_emulator.gameManager) {
-      console.warn('injectSaveIntoEmulator: GameManager no está listo todavía.');
-      return false;
-    }
+    if (!window.EJS_emulator || !window.EJS_emulator.gameManager) return false;
 
     const gm = window.EJS_emulator.gameManager;
-    const baseName = this.sanitizeName(romName || this.currentRomName);
 
     try {
       if (gm.FS) {
@@ -1053,22 +481,46 @@ class SaveManager {
         if (typeof gm.loadSaveFiles === 'function') {
           gm.loadSaveFiles();
         }
-        if (typeof gm.FS.syncfs === 'function') {
-          gm.FS.syncfs(false, () => {});
-        }
 
-        console.log(`✅ Partida previa inyectada exitosamente (${saveData.byteLength} bytes)`);
-        this.showToast(`✅ Partida cargada (${baseName}.sav)`, 'success');
+        console.log(`✅ Partida inyectada exitosamente (${saveData.byteLength} bytes)`);
         return true;
       }
     } catch (err) {
-      console.error('Error inyectando partida previa en el núcleo WASM:', err);
+      console.error('Error inyectando partida en el emulador:', err);
       return false;
     }
   }
 
   /**
-   * Exporta la partida actual a un archivo .sav descargable (iOS y Desktop)
+   * Genera la descarga segura de un archivo .sav
+   */
+  generateSavFileDownload(saveData, filename) {
+    if (!saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) {
+      this.showToast('⚠️ No hay datos de partida listos para descargar.', 'warning');
+      return;
+    }
+
+    const now = Date.now();
+    if (this.lastDownloadTime && (now - this.lastDownloadTime < 2500)) return;
+    this.lastDownloadTime = now;
+
+    const blob = saveData instanceof Blob ? saveData : new Blob([saveData], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try { document.body.removeChild(a); } catch (e) {}
+      URL.revokeObjectURL(url);
+    }, 10000);
+
+    this.showToast(`📥 Descargando archivo de partida: ${filename}`, 'success');
+  }
+
+  /**
+   * Exporta la partida actual a un archivo .sav descargable
    */
   async exportCurrentSave(romName) {
     let saveData = null;
@@ -1078,9 +530,7 @@ class SaveManager {
         const gm = window.EJS_emulator.gameManager;
         if (typeof gm.saveSaveFiles === 'function') gm.saveSaveFiles();
         if (typeof gm.getSaveFile === 'function') saveData = gm.getSaveFile();
-      } catch (e) {
-        console.warn('Error extrayendo saveFile de gameManager:', e);
-      }
+      } catch (e) {}
     }
 
     if (!saveData || saveData.byteLength === 0) {
@@ -1091,165 +541,8 @@ class SaveManager {
       const filename = `${this.sanitizeName(romName || this.currentRomName)}.sav`;
       this.generateSavFileDownload(saveData, filename);
     } else {
-      this.showToast('⚠️ No se encontraron datos de guardado aún. Guarda primero dentro del juego.', 'warning');
+      this.showToast('⚠️ No hay datos de partida guardada todavía.', 'warning');
     }
-  }
-
-  /**
-   * Guarda una ROM en el almacenamiento persistente de IndexedDB
-   */
-  async saveRom(file) {
-    if (!this.db || !file) return;
-    try {
-      const name = file.name || this.currentRomName || 'Pokemon - Edicion Plata SoulSilver.nds';
-      const cleanTitle = name.replace(/\.(nds|zip|7z)$/i, '');
-
-      let arrayBuffer;
-      if (file instanceof ArrayBuffer) {
-        arrayBuffer = file;
-      } else if (file instanceof Uint8Array) {
-        arrayBuffer = file.buffer;
-      } else if (typeof file.arrayBuffer === 'function') {
-        arrayBuffer = await file.arrayBuffer();
-      } else {
-        const reader = new FileReader();
-        arrayBuffer = await new Promise((res, rej) => {
-          reader.onload = () => res(reader.result);
-          reader.onerror = rej;
-          reader.readAsArrayBuffer(file);
-        });
-      }
-
-      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-        return;
-      }
-
-      const uint8 = new Uint8Array(arrayBuffer);
-      const record = {
-        name: name,
-        cleanTitle: cleanTitle,
-        size: file.size || uint8.byteLength || 0,
-        lastPlayed: Date.now(),
-        data: uint8
-      };
-
-      const tx = this.db.transaction('roms', 'readwrite');
-      tx.objectStore('roms').put(record);
-      await new Promise((res) => {
-        tx.oncomplete = res;
-        tx.onerror = res;
-      });
-      console.log(`[SaveManager] ROM guardada permanentemente: ${name} (${record.size} bytes)`);
-    } catch (err) {
-      console.warn('Error guardando ROM en IndexedDB:', err);
-    }
-  }
-
-  /**
-   * Obtiene todas las ROMs guardadas ordenadas por última jugada
-   */
-  async getAllRecentRoms() {
-    if (!this.db) return [];
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction('roms', 'readonly');
-        const store = tx.objectStore('roms');
-        const req = store.getAll();
-        req.onsuccess = () => {
-          const list = req.result || [];
-          list.sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
-          resolve(list);
-        };
-        req.onerror = () => resolve([]);
-      } catch (err) {
-        resolve([]);
-      }
-    });
-  }
-
-  /**
-   * Elimina una ROM de la lista de recientes en IndexedDB
-   */
-  async deleteRom(name) {
-    if (!this.db) return false;
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction('roms', 'readwrite');
-        const req = tx.objectStore('roms').delete(name);
-        req.onsuccess = () => resolve(true);
-        req.onerror = () => resolve(false);
-      } catch (err) {
-        resolve(false);
-      }
-    });
-  }
-
-  /**
-   * Actualiza el timestamp de última partida de una ROM
-   */
-  async updateRomLastPlayed(name) {
-    if (!this.db || !name) return;
-    try {
-      const tx = this.db.transaction('roms', 'readwrite');
-      const store = tx.objectStore('roms');
-      const req = store.get(name);
-      req.onsuccess = () => {
-        if (req.result) {
-          const record = req.result;
-          record.lastPlayed = Date.now();
-          store.put(record);
-        }
-      };
-    } catch (err) {}
-  }
-
-  /**
-   * Obtiene información detallada del archivo de guardado para el modal de lanzamiento
-   */
-  async getSaveFileInfo(romName) {
-    const baseName = this.sanitizeName(romName || this.currentRomName);
-    const filename = `${baseName}.sav`;
-    
-    const record = await this.getLocalSaveRecord(baseName);
-    const backups = await this.getBackupsForRom(baseName);
-    
-    let exists = false;
-    let size = 0;
-    let timestamp = 0;
-    let data = null;
-    let location = this.isIOS ? 'iOS Bóveda & DB' : 'IndexedDB Protegida';
-
-    if (record && record.data && record.data.length > 0) {
-      exists = true;
-      size = record.size || record.data.byteLength || 0;
-      timestamp = record.timestamp || 0;
-      data = record.data instanceof Uint8Array ? record.data : new Uint8Array(record.data);
-    } else if (backups && backups.length > 0 && backups[0].data) {
-      exists = true;
-      size = backups[0].size || backups[0].data.byteLength || 0;
-      timestamp = backups[0].timestamp || 0;
-      data = backups[0].data instanceof Uint8Array ? backups[0].data : new Uint8Array(backups[0].data);
-    }
-
-    if (this.directoryHandle) {
-      location = `Disco (${this.directoryHandle.name || 'SoulSilver'}) + Bóveda`;
-    }
-
-    const sizeFormatted = size > 0 ? (size >= 1024 ? `${(size / 1024).toFixed(0)} KB` : `${size} B`) : '512 KB';
-    const timeFormatted = timestamp > 0 ? new Date(timestamp).toLocaleString() : 'Sin partida previa';
-
-    return {
-      exists,
-      filename,
-      baseName,
-      size,
-      sizeFormatted,
-      timestamp,
-      timeFormatted,
-      location,
-      backupsCount: backups ? backups.length : 0,
-      data
-    };
   }
 
   /**
@@ -1262,7 +555,6 @@ class SaveManager {
     
     let uint8 = saveInfo.data;
     if (!uint8 || uint8.byteLength === 0) {
-      // Si no existe guardado previo aún, generar un bloque SRAM NDS inicial de 512KB limpio
       uint8 = new Uint8Array(512 * 1024);
       uint8.fill(0xFF);
     }
@@ -1281,32 +573,19 @@ class SaveManager {
 
     const baseName = this.sanitizeName(romName || this.currentRomName);
     const filename = `${baseName}.sav`;
+    const now = Date.now();
 
     try {
-      const pkhexTimestamp = Date.now();
-
-      // 1. Crear Snapshot de Bóveda con etiqueta 'pkhex'
-      await this.createBackupSnapshot(baseName, uint8, 'pkhex', 'Editado con PKHeX Studio');
-
-      // 2. Guardar en ranuras primarias de IndexedDB (.sav y .srm) con timestamp exacto
-      await this.saveMultipleToIndexedDB([
-        { name: filename, data: uint8, timestamp: pkhexTimestamp },
-        { name: `${baseName}.sav`, data: uint8, timestamp: pkhexTimestamp },
-        { name: `${baseName}.srm`, data: uint8, timestamp: pkhexTimestamp },
-        { name: `${baseName}.dsv`, data: uint8, timestamp: pkhexTimestamp },
-        { name: `game.sav`, data: uint8, timestamp: pkhexTimestamp },
-        { name: `game.srm`, data: uint8, timestamp: pkhexTimestamp },
-        { name: `last_known_good_${baseName}.sav`, data: uint8, timestamp: pkhexTimestamp }
-      ]);
-
+      // 1. Guardar en el único registro de IndexedDB
+      await this.saveToIndexedDB(filename, uint8, now);
       window._activeRomSaveData = uint8;
 
-      // 3. Escribir en carpeta en disco si está vinculada
+      // 2. Escribir en carpeta en disco si está vinculada
       if (this.directoryHandle) {
         this.writeToDisk(filename, uint8).catch(() => {});
       }
 
-      // 4. Inyectar en emulador si está corriendo y recargar SRAM en el núcleo
+      // 3. Inyectar en emulador si está corriendo y recargar SRAM en el núcleo
       if (window.EJS_emulator?.gameManager?.FS) {
         try {
           const gm = window.EJS_emulator.gameManager;
@@ -1316,7 +595,7 @@ class SaveManager {
           const targetPath = gm.getSaveFilePath?.();
           if (targetPath) {
             try {
-              if (gm.FS.analyzePath(targetPath).exists) gm.FS.unlink(targetPath);
+              if (gm.FS.analyzePath(targetPath).exists) gm.FS.unlink(dynamicPath);
               gm.FS.writeFile(targetPath, uint8);
             } catch (e) {}
           }
@@ -1326,9 +605,9 @@ class SaveManager {
         } catch (e) {}
       }
 
-      // 5. Sincronizar en la Nube con el timestamp exacto en paralelo
+      // 4. Sincronizar en la Nube
       if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
-        window.cloudSaveManager.uploadCloudSave(uint8, baseName, pkhexTimestamp);
+        window.cloudSaveManager.uploadCloudSave(uint8, baseName, now);
       }
 
       this.lastSavedHash = this.computeHash(uint8);
@@ -1342,9 +621,217 @@ class SaveManager {
     }
   }
 
+  /**
+   * Obtiene metadatos e información de la partida única de un juego
+   */
+  async getSaveFileInfo(romName) {
+    const baseName = this.sanitizeName(romName || this.currentRomName);
+    const filename = `${baseName}.sav`;
+
+    const localRec = await this.getLocalSaveRecord(baseName);
+    let exists = false;
+    let size = 0;
+    let timestamp = 0;
+    let location = 'Sin guardar';
+    let data = null;
+
+    if (localRec && localRec.data) {
+      exists = true;
+      size = localRec.size || localRec.data.byteLength || 0;
+      timestamp = localRec.timestamp || 0;
+      location = 'Almacenamiento Local (IndexedDB)';
+      data = localRec.data instanceof Uint8Array ? localRec.data : new Uint8Array(localRec.data);
+    }
+
+    const sizeFormatted = size > 0 ? `${(size / 1024).toFixed(0)} KB` : '0 KB';
+    const timeFormatted = timestamp > 0 ? new Date(timestamp).toLocaleString() : 'Sin fecha';
+
+    return {
+      exists,
+      filename,
+      baseName,
+      size,
+      sizeFormatted,
+      timestamp,
+      timeFormatted,
+      location,
+      data
+    };
+  }
+
+  /**
+   * Gestión de ROMs recientes en IndexedDB
+   */
+  async saveRom(file) {
+    if (!this.db || !file) return;
+    try {
+      const tx = this.db.transaction('roms', 'readwrite');
+      const store = tx.objectStore('roms');
+      const cleanTitle = this.sanitizeName(file.name);
+      store.put({
+        name: file.name,
+        cleanTitle: cleanTitle,
+        size: file.size,
+        data: file,
+        lastPlayed: Date.now()
+      });
+    } catch (err) {
+      console.warn('Error guardando ROM en biblioteca:', err);
+    }
+  }
+
+  async getAllRecentRoms() {
+    if (!this.db) return [];
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('roms', 'readonly');
+        const req = tx.objectStore('roms').getAll();
+        req.onsuccess = () => {
+          const list = req.result || [];
+          list.sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
+          resolve(list);
+        };
+        req.onerror = () => resolve([]);
+      } catch (e) {
+        resolve([]);
+      }
+    });
+  }
+
+  async updateRomLastPlayed(romName) {
+    if (!this.db || !romName) return;
+    try {
+      const tx = this.db.transaction('roms', 'readwrite');
+      const store = tx.objectStore('roms');
+      const req = store.get(romName);
+      req.onsuccess = () => {
+        if (req.result) {
+          req.result.lastPlayed = Date.now();
+          store.put(req.result);
+        }
+      };
+    } catch (e) {}
+  }
+
+  async deleteRom(romName) {
+    if (!this.db || !romName) return false;
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('roms', 'readwrite');
+        tx.objectStore('roms').delete(romName);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  }
+
+  /**
+   * Vincula una carpeta en disco local
+   */
+  async selectDirectory() {
+    if (!('showDirectoryPicker' in window)) {
+      this.showToast('⚠️ Tu navegador no soporta vinculación directa con carpetas en disco.', 'warning');
+      return false;
+    }
+
+    try {
+      this.directoryHandle = await window.showDirectoryPicker({
+        mode: 'readwrite',
+        startIn: 'documents'
+      });
+
+      await this.saveDirectoryHandle(this.directoryHandle);
+      this.updatePlatformStatusUI();
+      this.showToast(`📁 Carpeta vinculada: ${this.directoryHandle.name}`, 'success');
+      return true;
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Error seleccionando directorio:', err);
+      }
+      return false;
+    }
+  }
+
+  async linkSoulSilverFolder() {
+    return this.selectDirectory();
+  }
+
+  async saveDirectoryHandle(handle) {
+    if (!this.db || !handle) return;
+    try {
+      const tx = this.db.transaction('handles', 'readwrite');
+      tx.objectStore('handles').put({ id: 'save_dir', handle: handle });
+    } catch (err) {
+      console.warn('Error guardando directory handle:', err);
+    }
+  }
+
+  async loadSavedHandle() {
+    if (!this.db || !('showDirectoryPicker' in window)) return;
+    try {
+      const tx = this.db.transaction('handles', 'readonly');
+      const req = tx.objectStore('handles').get('save_dir');
+      req.onsuccess = async () => {
+        if (req.result && req.result.handle) {
+          const handle = req.result.handle;
+          const permission = await handle.queryPermission({ mode: 'readwrite' });
+          if (permission === 'granted') {
+            this.directoryHandle = handle;
+            this.updatePlatformStatusUI();
+          }
+        }
+      };
+    } catch (err) {}
+  }
+
+  async removeDirectoryHandle() {
+    this.directoryHandle = null;
+    if (this.db) {
+      try {
+        const tx = this.db.transaction('handles', 'readwrite');
+        tx.objectStore('handles').delete('save_dir');
+      } catch (e) {}
+    }
+    this.updatePlatformStatusUI();
+    this.showToast('📁 Carpeta en disco desvinculada.', 'info');
+  }
+
+  setSaveMode(mode) {
+    this.saveMode = mode;
+    localStorage.setItem('nds_save_mode', mode);
+    this.updatePlatformStatusUI();
+  }
+
+  updatePlatformStatusUI() {
+    const diskBadge = document.getElementById('disk-folder-status');
+    const folderNameEl = document.getElementById('disk-folder-name');
+    if (diskBadge) {
+      if (this.directoryHandle) {
+        diskBadge.textContent = '🟢 Conectada';
+        diskBadge.className = 'status-badge active';
+        if (folderNameEl) folderNameEl.textContent = this.directoryHandle.name;
+      } else {
+        diskBadge.textContent = '⚪ No vinculada';
+        diskBadge.className = 'status-badge inactive';
+        if (folderNameEl) folderNameEl.textContent = 'Ninguna';
+      }
+    }
+  }
+
+  updateStorageQuotaUI() {
+    const quotaEl = document.getElementById('storage-quota-text');
+    if (quotaEl && this.storageQuotaInfo.quota > 0) {
+      const usedMb = (this.storageQuotaInfo.usage / (1024 * 1024)).toFixed(1);
+      const totalMb = (this.storageQuotaInfo.quota / (1024 * 1024)).toFixed(0);
+      quotaEl.textContent = `${usedMb} MB de ${totalMb} MB (${this.storageQuotaInfo.persisted ? 'Permanente' : 'Normal'})`;
+    }
+  }
+
   sanitizeName(name) {
     if (!name) return 'Pokemon - Edicion Plata SoulSilver';
-    return name.replace(/\.(nds|zip|7z|sav|dsv)$/i, '').trim();
+    return name.replace(/\.(nds|zip|7z|sav|dsv|srm)$/i, '').trim();
   }
 
   showToast(message, type = 'info') {

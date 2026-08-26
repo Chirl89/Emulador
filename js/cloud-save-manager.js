@@ -2,7 +2,7 @@
  * NDS Web Emulator - Cloud Save Manager
  * Sincronización bidireccional en tiempo real y persistencia en la nube
  * Validación de integridad por chunks, timestamps y resolución de conflictos
- * Versión: v0.8.4
+ * Versión: v0.9.0
  */
 
 class CloudSaveManager {
@@ -284,7 +284,7 @@ class CloudSaveManager {
           chunkIndex: i,
           totalChunks: totalChunks,
           isVerifiedSave: true,
-          version: 'v0.8.4',
+          version: 'v0.9.0',
           data: chunk
         };
 
@@ -337,7 +337,7 @@ class CloudSaveManager {
   }
 
   /**
-   * Forzar descarga manual desde la Nube
+   * Forzar descarga manual del respaldo desde la Nube
    */
   async forceCloudDownload(romName) {
     if (!window.saveManager) return false;
@@ -345,18 +345,12 @@ class CloudSaveManager {
     const cloudRes = await this.fetchLatestCloudSave(name);
     if (cloudRes && cloudRes.data) {
       const baseName = window.saveManager.sanitizeName(name);
+      const filename = `${baseName}.sav`;
       const cTimestamp = Number(cloudRes.timestamp) || Date.now();
-      await window.saveManager.createBackupSnapshot(baseName, cloudRes.data, 'cloud', 'Descarga manual forzada de Nube');
-      await window.saveManager.saveMultipleToIndexedDB([
-        { name: `${baseName}.sav`, data: cloudRes.data, timestamp: cTimestamp },
-        { name: `${baseName}.srm`, data: cloudRes.data, timestamp: cTimestamp },
-        { name: `${baseName}.dsv`, data: cloudRes.data, timestamp: cTimestamp },
-        { name: `game.sav`, data: cloudRes.data, timestamp: cTimestamp },
-        { name: `game.srm`, data: cloudRes.data, timestamp: cTimestamp },
-        { name: `last_known_good_${baseName}.sav`, data: cloudRes.data, timestamp: cTimestamp }
-      ]);
+
+      await window.saveManager.saveToIndexedDB(filename, cloudRes.data, cTimestamp);
       if (window.saveManager.directoryHandle) {
-        window.saveManager.writeToDisk(`${baseName}.sav`, cloudRes.data).catch(() => {});
+        window.saveManager.writeToDisk(filename, cloudRes.data).catch(() => {});
       }
       window._activeRomSaveData = cloudRes.data;
       window.saveManager.lastSavedHash = window.saveManager.computeHash(cloudRes.data);
@@ -372,7 +366,7 @@ class CloudSaveManager {
         } catch (e) {}
       }
 
-      window.saveManager.showToast(`☁️ Partida forzada descargada e inyectada con éxito (${new Date(cTimestamp).toLocaleTimeString()})`, 'success');
+      window.saveManager.showToast(`☁️ Respaldo de la Nube restaurado con éxito (${new Date(cTimestamp).toLocaleTimeString()})`, 'success');
       return true;
     } else {
       window.saveManager.showToast('⚠️ No se encontró partida en la Nube.', 'warning');
