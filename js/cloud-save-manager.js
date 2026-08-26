@@ -2,7 +2,7 @@
  * NDS Web Emulator - Cloud Save Manager
  * Sincronización bidireccional en tiempo real y persistencia en la nube
  * Validación de integridad por chunks, timestamps y resolución de conflictos
- * Versión: v0.8.3
+ * Versión: v0.8.4
  */
 
 class CloudSaveManager {
@@ -145,14 +145,18 @@ class CloudSaveManager {
 
       // Agrupar por syncId para reconstruir la versión más reciente
       const syncGroups = {};
+      const nowMax = Date.now() + 86400000; // Máximo 24h en el futuro por desfase horario
       for (const msg of saveMessages) {
+        const msgTime = Number(msg.timestamp) || 0;
+        if (msgTime > nowMax) continue; // Descartar timestamps corruptos del futuro lejano
+
         if (!syncGroups[msg.syncId]) {
           syncGroups[msg.syncId] = {
             syncId: msg.syncId,
-            timestamp: msg.timestamp || 0,
-            totalChunks: msg.totalChunks || 1,
-            byteLength: msg.byteLength || 0,
-            hash: msg.hash || 0,
+            timestamp: msgTime,
+            totalChunks: Number(msg.totalChunks) || 1,
+            byteLength: Number(msg.byteLength) || 0,
+            hash: Number(msg.hash) || 0,
             chunks: {}
           };
         }
@@ -160,7 +164,7 @@ class CloudSaveManager {
       }
 
       // Ordenar syncIds por timestamp descendente
-      const sortedSyncIds = Object.keys(syncGroups).sort((a, b) => syncGroups[b].timestamp - syncGroups[a].timestamp);
+      const sortedSyncIds = Object.keys(syncGroups).sort((a, b) => (syncGroups[b].timestamp || 0) - (syncGroups[a].timestamp || 0));
 
       // Buscar el grupo más reciente que tenga TODOS sus chunks completos
       let completeGroup = null;
@@ -192,7 +196,11 @@ class CloudSaveManager {
       }
 
       const uint8 = this.base64ToUint8(fullBase64);
-      if (uint8 && uint8.byteLength > 0) {
+      const isSramOk = (window.saveManager && typeof window.saveManager.isSramValidAndProgressed === 'function')
+        ? window.saveManager.isSramValidAndProgressed(uint8)
+        : (uint8 && uint8.byteLength >= 512);
+
+      if (uint8 && uint8.byteLength >= 512 && isSramOk) {
         console.log(`☁️ [PubNub Cloud] ✅ Partida "${channel}" reconstruida con éxito (${uint8.byteLength} bytes, fecha: ${new Date(completeGroup.timestamp).toLocaleString()}).`);
         this.updateUIStatus('connected');
 
@@ -223,8 +231,9 @@ class CloudSaveManager {
    * Sube la partida (.sav) al canal único del juego con metadatos completos y chunks seguros
    * @param {Uint8Array|ArrayBuffer|Blob} saveData Datos binarios del archivo .sav
    * @param {string} romName Nombre de la ROM
+   * @param {number} customTimestamp Marca de tiempo sincronizada con el guardado local
    */
-  async uploadCloudSave(saveData, romName) {
+  async uploadCloudSave(saveData, romName, customTimestamp = null) {
     if (!saveData || (saveData.byteLength !== undefined && saveData.byteLength === 0)) {
       return false;
     }
@@ -242,11 +251,7 @@ class CloudSaveManager {
       return false;
     }
 
-    const now = Date.now();
-    if (this.isUploading || (now - this.lastUploadTime < 3000)) {
-      return false;
-    }
-
+    const now = Number(customTimestamp) || Date.now();
     const channel = this.getChannelForRom(romName);
     this.currentChannel = channel;
     const pubKey = (this.publishKey || 'demo').trim();
@@ -263,7 +268,7 @@ class CloudSaveManager {
       const totalChunks = Math.ceil(base64Data.length / chunkSize);
       const syncId = 'save_' + now + '_' + Math.random().toString(36).substring(2, 6);
 
-      console.log(`☁️ [PubNub Cloud] Subiendo "${channel}" (${uint8Data.byteLength} bytes en ${totalChunks} bloques)...`);
+      console.log(`☁️ [PubNub Cloud] Subiendo "${channel}" (fecha: ${new Date(now).toLocaleTimeString()}, ${uint8Data.byteLength} bytes en ${totalChunks} bloques)...`);
 
       // Publicar todos los bloques en paralelo con metadatos
       const publishPromises = [];
@@ -279,13 +284,18 @@ class CloudSaveManager {
           chunkIndex: i,
           totalChunks: totalChunks,
           isVerifiedSave: true,
-          version: 'v0.5.0',
+          version: 'v0.8.4',
           data: chunk
         };
 
         const encoded = encodeURIComponent(JSON.stringify(payload));
         const pubUrl = `https://ps.pubnub.com/publish/${pubKey}/${subKey}/0/${channel}/0/${encoded}`;
-        publishPromises.push(fetch(pubUrl));
+        publishPromises.push(
+          fetch(pubUrl).then(async (res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json().catch(() => ({}));
+          })
+        );
       }
 
       await Promise.all(publishPromises);
@@ -297,13 +307,8 @@ class CloudSaveManager {
         hash: hash
       };
 
-      console.log(`☁️ [PubNub Cloud] ✅ Partida subida a "${channel}" con éxito.`);
+      console.log(`☁️ [PubNub Cloud] ✅ Partida subida a "${channel}" con éxito (Timestamp: ${now}).`);
       this.updateUIStatus('connected');
-
-      if (window.saveManager) {
-        window.saveManager.showToast(`☁️ Partida respaldada en la Nube (${channel})`, 'success');
-      }
-
       this.isUploading = false;
       return true;
     } catch (err) {
@@ -324,8 +329,10 @@ class CloudSaveManager {
       window.saveManager.showToast('⚠️ No hay partida local para subir.', 'warning');
       return false;
     }
-    this.lastUploadTime = 0; // Desactivar cooldown
-    const ok = await this.uploadCloudSave(rec.data, romName || window.app?.currentRomName);
+    const ok = await this.uploadCloudSave(rec.data, romName || window.app?.currentRomName, Number(rec.timestamp) || Date.now());
+    if (ok) {
+      window.saveManager.showToast('☁️ Partida local subida a la Nube con éxito.', 'success');
+    }
     return ok;
   }
 
@@ -338,24 +345,34 @@ class CloudSaveManager {
     const cloudRes = await this.fetchLatestCloudSave(name);
     if (cloudRes && cloudRes.data) {
       const baseName = window.saveManager.sanitizeName(name);
+      const cTimestamp = Number(cloudRes.timestamp) || Date.now();
       await window.saveManager.createBackupSnapshot(baseName, cloudRes.data, 'cloud', 'Descarga manual forzada de Nube');
-      await window.saveManager.saveToIndexedDB(`${baseName}.sav`, cloudRes.data);
-      await window.saveManager.saveToIndexedDB(`game.sav`, cloudRes.data);
-      await window.saveManager.saveToIndexedDB(`last_known_good_${baseName}.sav`, cloudRes.data);
+      await window.saveManager.saveMultipleToIndexedDB([
+        { name: `${baseName}.sav`, data: cloudRes.data, timestamp: cTimestamp },
+        { name: `${baseName}.srm`, data: cloudRes.data, timestamp: cTimestamp },
+        { name: `${baseName}.dsv`, data: cloudRes.data, timestamp: cTimestamp },
+        { name: `game.sav`, data: cloudRes.data, timestamp: cTimestamp },
+        { name: `game.srm`, data: cloudRes.data, timestamp: cTimestamp },
+        { name: `last_known_good_${baseName}.sav`, data: cloudRes.data, timestamp: cTimestamp }
+      ]);
+      if (window.saveManager.directoryHandle) {
+        window.saveManager.writeToDisk(`${baseName}.sav`, cloudRes.data).catch(() => {});
+      }
+      window._activeRomSaveData = cloudRes.data;
+      window.saveManager.lastSavedHash = window.saveManager.computeHash(cloudRes.data);
+      if (window.app) window.app.lastSavedHash = window.app.computeSaveHash(cloudRes.data);
 
       if (window.EJS_emulator?.gameManager?.FS) {
         try {
           const gm = window.EJS_emulator.gameManager;
-          const targetPath = gm.getSaveFilePath?.() || `/data/saves/${baseName}.sav`;
-          if (gm.FS.analyzePath('/data/saves').exists) {
-            gm.FS.writeFile(targetPath, cloudRes.data);
-            gm.FS.writeFile(`/data/saves/game.sav`, cloudRes.data);
-            if (typeof gm.loadSaveFiles === 'function') gm.loadSaveFiles();
+          if (window.app && typeof window.app.injectSaveFilesToFS === 'function') {
+            window.app.injectSaveFilesToFS(gm.FS, cloudRes.data, name);
           }
+          if (typeof gm.loadSaveFiles === 'function') gm.loadSaveFiles();
         } catch (e) {}
       }
 
-      window.saveManager.showToast('☁️ Partida forzada descargada e inyectada con éxito', 'success');
+      window.saveManager.showToast(`☁️ Partida forzada descargada e inyectada con éxito (${new Date(cTimestamp).toLocaleTimeString()})`, 'success');
       return true;
     } else {
       window.saveManager.showToast('⚠️ No se encontró partida en la Nube.', 'warning');
