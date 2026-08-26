@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Save Manager
  * Gestor de persistencia robusta, Bóveda Time-Machine de backups, importación/exportación y sincronización en disco
- * Versión: v0.8.2
+ * Versión: v0.8.3
  */
 
 class SaveManager {
@@ -376,12 +376,14 @@ class SaveManager {
     const baseName = this.sanitizeName(romName || this.currentRomName);
     const cleanRom = (romName || '').replace(/\.(nds|zip|7z)$/i, '');
 
-    const priorityKeys = [
+    const candidateKeys = [
       `${baseName}.sav`,
       `${baseName}.srm`,
       `${baseName}.dsv`,
       `${cleanRom}.sav`,
       `${cleanRom}.srm`,
+      `${cleanRom}.nds.sav`,
+      `${cleanRom}.nds.srm`,
       `${romName}.sav`,
       `${romName}.srm`,
       `last_known_good_${baseName}.sav`,
@@ -394,43 +396,35 @@ class SaveManager {
       const tx = this.db.transaction('saves', 'readonly');
       const store = tx.objectStore('saves');
 
-      // 1. Probar en orden de prioridad secuencial registros con SRAM válida
-      for (const key of priorityKeys) {
-        const rec = await new Promise((res) => {
-          const req = store.get(key);
-          req.onsuccess = () => res(req.result || null);
-          req.onerror = () => res(null);
-        });
-
-        if (rec && rec.data) {
-          const byteLen = rec.data.byteLength || rec.data.length || 0;
-          if (byteLen >= 512 && this.isSramValidAndProgressed(rec.data)) {
-            return rec;
-          }
-        }
-      }
-
-      // 2. Si no se encontró por clave exacta, buscar por coincidencia en todos los registros
       const allRecords = await new Promise((res) => {
         const req = store.getAll();
         req.onsuccess = () => res(req.result || []);
         req.onerror = () => res([]);
       });
 
+      // Filtrar registros relevantes para este juego que tengan SRAM válida
       const cleanTarget = baseName.toLowerCase().replace(/[^a-z0-9]/g, '');
-      for (const rec of allRecords) {
-        if (rec && rec.name && rec.data) {
-          const cleanRecName = rec.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (cleanRecName.includes(cleanTarget) || cleanTarget.includes(cleanRecName)) {
-            const byteLen = rec.data.byteLength || rec.data.length || 0;
-            if (byteLen >= 512 && this.isSramValidAndProgressed(rec.data)) {
-              return rec;
-            }
-          }
-        }
+      const validRecords = allRecords.filter(rec => {
+        if (!rec || !rec.data) return false;
+        const byteLen = rec.data.byteLength || rec.data.length || 0;
+        if (byteLen < 512 || !this.isSramValidAndProgressed(rec.data)) return false;
+
+        const recName = (rec.name || '').toLowerCase();
+        const cleanRecName = recName.replace(/[^a-z0-9]/g, '');
+        return candidateKeys.includes(rec.name) ||
+               cleanRecName.includes(cleanTarget) ||
+               cleanTarget.includes(cleanRecName) ||
+               recName.startsWith('game.');
+      });
+
+      // Ordenar por fecha de modificación descendente: EL MÁS RECIENTE SIEMPRE TIENE PRIORIDAD
+      if (validRecords.length > 0) {
+        validRecords.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        console.log(`[Save Record] Encontrado guardado más reciente: "${validRecords[0].name}" (${new Date(validRecords[0].timestamp || Date.now()).toLocaleTimeString()})`);
+        return validRecords[0];
       }
 
-      // 3. Si en 'saves' no hay datos con progreso, buscar en la Bóveda de 'backups' (Time-Machine)
+      // 2. Si en 'saves' no hay datos con progreso, buscar en la Bóveda de 'backups' (Time-Machine)
       const backups = await this.getBackupsForRom(baseName);
       if (backups && backups.length > 0) {
         for (const b of backups) {
@@ -444,18 +438,6 @@ class SaveManager {
               hash: b.hash
             };
           }
-        }
-      }
-
-      // 4. Último recurso: si había algún registro local aunque sea sin inicializar
-      for (const key of priorityKeys) {
-        const rec = await new Promise((res) => {
-          const req = store.get(key);
-          req.onsuccess = () => res(req.result || null);
-          req.onerror = () => res(null);
-        });
-        if (rec && rec.data && (rec.data.byteLength || rec.data.length || 0) >= 512) {
-          return rec;
         }
       }
 
@@ -671,9 +653,11 @@ class SaveManager {
 
     // Evitar escrituras repetidas redundantes con idéntico hash
     if (isAutoSave && this.lastSavedHash === newHash) {
+      window._activeRomSaveData = uint8Data;
       return true;
     }
     this.lastSavedHash = newHash;
+    window._activeRomSaveData = uint8Data;
 
     // 1. CAPA TIME-MACHINE: Comprobar guardado anterior y crear Snapshot de respaldo antes de sobreescribir
     try {
@@ -868,7 +852,7 @@ class SaveManager {
           const arrayBuffer = await file.arrayBuffer();
           if (arrayBuffer && arrayBuffer.byteLength >= 512) {
             const diskData = new Uint8Array(arrayBuffer);
-            if (file.lastModified > localTimestamp || !localData) {
+            if (this.isSramValidAndProgressed(diskData) && (file.lastModified > localTimestamp || !localData)) {
               localData = diskData;
               localTimestamp = file.lastModified;
               console.log(`Partida de disco más reciente encontrada: ${fname}`);
@@ -913,6 +897,7 @@ class SaveManager {
 
         this.showToast(`☁️ Partida descargada de la Nube (${new Date(cloudTimestamp).toLocaleTimeString()})`, 'success');
         this.lastSavedHash = this.computeHash(cloudData);
+        window._activeRomSaveData = cloudData;
         return cloudData;
       }
       // CASO B: El guardado local es más reciente que la nube
@@ -921,6 +906,7 @@ class SaveManager {
         window.cloudSaveManager.uploadCloudSave(localData, romName);
         this.showToast(`💻 Partida local cargada y sincronizada a la Nube`, 'success');
         this.lastSavedHash = this.computeHash(localData);
+        window._activeRomSaveData = localData;
         return localData;
       }
     }
@@ -929,6 +915,7 @@ class SaveManager {
     if (localData && localData.byteLength >= 512 && this.isSramValidAndProgressed(localData)) {
       console.log(`✅ [Save Load] Partida local válida cargada con éxito (${localData.byteLength} bytes)`);
       this.lastSavedHash = this.computeHash(localData);
+      window._activeRomSaveData = localData;
       return localData;
     }
 
@@ -944,6 +931,7 @@ class SaveManager {
         await this.saveToIndexedDB('game.srm', recoveredData);
         this.showToast(`🛡️ Partida restaurada desde la Bóveda de Seguridad`, 'info');
         this.lastSavedHash = this.computeHash(recoveredData);
+        window._activeRomSaveData = recoveredData;
         return recoveredData;
       }
     }
@@ -952,9 +940,11 @@ class SaveManager {
     if (localData && localData.byteLength >= 512) {
       console.log(`ℹ️ [Save Load] Cargando partida local directa (${localData.byteLength} bytes)`);
       this.lastSavedHash = this.computeHash(localData);
+      window._activeRomSaveData = localData;
       return localData;
     }
 
+    window._activeRomSaveData = null;
     return null;
   }
 

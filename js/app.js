@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.8.2
+ * Versión: v0.8.3
  */
 
 class NDSEmulatorApp {
@@ -22,6 +22,7 @@ class NDSEmulatorApp {
     this.lastSavedHash = null;
     this.hasPlayerSavedInSession = false;
     this.initialBootSramHash = 0;
+    this.isExiting = false;
 
     // Configuración de audio y sonido real
     this.audioMuted = localStorage.getItem('nds_audio_muted') === 'true';
@@ -218,7 +219,7 @@ class NDSEmulatorApp {
    */
   initAutoSaveDaemon() {
     this.autoSaveInterval = setInterval(() => {
-      if (!this.isEmulating || this.isPaused || !window.EJS_emulator?.gameManager) {
+      if (!this.isEmulating || this.isPaused || this.isExiting || !window.EJS_emulator?.gameManager) {
         return;
       }
 
@@ -236,15 +237,18 @@ class NDSEmulatorApp {
           const currentHash = this.computeSaveHash(saveData);
           const isValidSram = window.saveManager ? window.saveManager.isSramValidAndProgressed(saveData) : false;
 
-          // Si la SRAM es válida y el hash es distinto del arranque (el usuario guardó en el juego), o guardó manualmente
-          if (isValidSram && (this.hasPlayerSavedInSession || (this.initialBootSramHash && currentHash !== this.initialBootSramHash))) {
+          // Si la SRAM es válida y ha cambiado respecto al último guardado
+          if (isValidSram && (!this.lastSavedHash || currentHash !== this.lastSavedHash)) {
+            this.lastSavedHash = currentHash;
             this.hasPlayerSavedInSession = true;
+            window._activeRomSaveData = saveData;
             window.saveManager?.saveGameData(
               saveData,
               `${window.saveManager.sanitizeName(this.currentRomName)}.sav`,
               true,  // isAutoSave = true
               false, // forceDownload = false
-              false  // showPrompt = false
+              false, // showPrompt = false
+              'autosave_daemon'
             );
           }
         }
@@ -255,26 +259,29 @@ class NDSEmulatorApp {
 
     // Guardar automáticamente antes de salir o recargar la página
     window.addEventListener('beforeunload', () => {
-      if (this.isEmulating && window.EJS_emulator?.gameManager) {
+      if (this.isEmulating && !this.isExiting && window.EJS_emulator?.gameManager) {
         try {
           const gm = window.EJS_emulator.gameManager;
           if (typeof gm.saveSaveFiles === 'function') gm.saveSaveFiles();
           const saveData = gm.getSaveFile?.(false);
           if (saveData && window.saveManager?.isSramValidAndProgressed(saveData)) {
+            window._activeRomSaveData = saveData;
             window.saveManager.saveGameData(saveData, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, true, false, false, 'unload');
           }
         } catch (e) {}
+        this.isExiting = true;
       }
     });
 
     // Guardar si la app entra en segundo plano (ej. cambiar de app en iOS / minimizar ventana)
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden' && this.isEmulating && window.EJS_emulator?.gameManager) {
+      if (document.visibilityState === 'hidden' && this.isEmulating && !this.isExiting && window.EJS_emulator?.gameManager) {
         try {
           const gm = window.EJS_emulator.gameManager;
           if (typeof gm.saveSaveFiles === 'function') gm.saveSaveFiles();
           const saveData = gm.getSaveFile?.(false);
           if (saveData && window.saveManager?.isSramValidAndProgressed(saveData)) {
+            window._activeRomSaveData = saveData;
             window.saveManager.saveGameData(saveData, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, true, false, false, 'visibility_hidden');
           }
         } catch (e) {}
@@ -1698,7 +1705,9 @@ class NDSEmulatorApp {
     document.body.classList.add('is-emulating');
     if (appEl) appEl.classList.add('is-emulating');
     this.isEmulating = true;
+    this.isExiting = false;
     this.hasPlayerSavedInSession = false;
+    this.lastSavedHash = preloadedSave ? this.computeSaveHash(preloadedSave) : null;
 
     if (window.touchControls && typeof window.touchControls.onGameStart === 'function') {
       window.touchControls.onGameStart();
@@ -1912,10 +1921,18 @@ class NDSEmulatorApp {
 
         // 2. Escuchar evento directo de guardado emitido por GameManager
         window.EJS_emulator.on("saveSaveFiles", (data) => {
-          console.log('⚡ [Event: saveSaveFiles] Datos de SRAM emitidos por el emulador:', data ? (data.byteLength || data.length) : 0);
-          if (data && window.saveManager) {
-            this.hasPlayerSavedInSession = true;
-            window.saveManager.saveGameData(data, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, true, false, false, 'emulator_event');
+          if (this.isExiting) {
+            console.log('🛡️ [Event: saveSaveFiles] Omitido durante la secuencia de salida/reset.');
+            return;
+          }
+          if (data && data.byteLength >= 512 && window.saveManager) {
+            if (window.saveManager.isSramValidAndProgressed(data)) {
+              console.log('⚡ [Event: saveSaveFiles] Guardando SRAM válida emitida por el emulador:', data.byteLength);
+              this.hasPlayerSavedInSession = true;
+              window._activeRomSaveData = data;
+              this.lastSavedHash = this.computeSaveHash(data);
+              window.saveManager.saveGameData(data, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, true, false, false, 'emulator_event');
+            }
           }
         });
 
@@ -2063,31 +2080,10 @@ class NDSEmulatorApp {
             gm.loadSaveFiles();
           }
         }
+        this.lastSavedHash = this.computeSaveHash(saveData);
+        window._activeRomSaveData = saveData;
         window.saveManager?.showToast(`🎮 Partida cargada con éxito (${(saveData.byteLength/1024).toFixed(0)} KB)`, 'success');
       }
-
-      // Reintentos de sincronización a los 500ms y 1200ms
-      const performSaveSyncRetry = () => {
-        if (window.EJS_emulator?.gameManager && !this.hasPlayerSavedInSession) {
-          const gm = window.EJS_emulator.gameManager;
-          const currentSave = window._activeRomSaveData;
-          if (currentSave && currentSave.byteLength >= 512 && gm.FS) {
-            const savePath = gm.getSaveFilePath?.();
-            if (savePath) {
-              try {
-                gm.FS.writeFile(savePath, currentSave);
-              } catch (e) {}
-            }
-            if (typeof gm.loadSaveFiles === 'function') {
-              gm.loadSaveFiles();
-              console.log('[Post-Boot Safety] gm.loadSaveFiles() re-ejecutado.');
-            }
-          }
-        }
-      };
-
-      setTimeout(performSaveSyncRetry, 500);
-      setTimeout(performSaveSyncRetry, 1200);
 
       this.gameStartedTime = Date.now();
       setTimeout(() => {
@@ -2099,7 +2095,7 @@ class NDSEmulatorApp {
           }
           if (sData && sData.byteLength >= 512) {
             this.initialBootSramHash = this.computeSaveHash(sData);
-            this.lastSavedHash = this.initialBootSramHash;
+            if (!this.lastSavedHash) this.lastSavedHash = this.initialBootSramHash;
             console.log('Hash inicial de arranque capturado:', this.initialBootSramHash);
           }
         }
@@ -2143,6 +2139,7 @@ class NDSEmulatorApp {
    */
   async exitGameToWelcome() {
     if (confirm('¿Deseas salir del juego y volver a la pantalla de bienvenida? Tu partida se respaldará automáticamente en la Bóveda.')) {
+      this.isExiting = true;
       try {
         await this.triggerSave(true);
       } catch (e) {
@@ -2308,6 +2305,8 @@ class NDSEmulatorApp {
     }
 
     if (saveData && window.saveManager) {
+      window._activeRomSaveData = saveData;
+      this.lastSavedHash = this.computeSaveHash(saveData);
       await window.saveManager.saveGameData(saveData, `${window.saveManager.sanitizeName(this.currentRomName)}.sav`, isAutoSave, forceDownload, !isAutoSave, 'manual');
     } else if (!isAutoSave && window.saveManager) {
       window.saveManager.showToast('ℹ️ Guarda la partida dentro del juego (Guardar en Pokémon) y luego pulsa este botón.', 'info');
@@ -2829,7 +2828,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.8.2') {
+              if (key !== 'nds-emulator-v0.8.3') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2837,7 +2836,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.8.2').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.8.3').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
