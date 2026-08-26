@@ -14,8 +14,8 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e60012'/><rect x='15' y='18' width='70' height='30' rx='5' fill='%23111'/><rect x='15' y='52' width='70' height='30' rx='5' fill='%23111'/><circle cx='30' cy='33' r='4' fill='%2300f0ff'/><circle cx='70' cy='67' r='4' fill='%23ff0055'/></svg>">
 
   <!-- Estilos con cache-busting -->
-  <link rel="stylesheet" href="css/style.css?v=0.7.9">
-  <link rel="stylesheet" href="css/touch-controls.css?v=0.7.9">
+  <link rel="stylesheet" href="css/style.css?v=0.8.0">
+  <link rel="stylesheet" href="css/touch-controls.css?v=0.8.0">
 
   <!-- Escudo indestructible contra controles virtuales, notificaciones, fast-forward, barra inferior y menús de EmulatorJS -->
   <style id="ejs-override-shield">
@@ -103,7 +103,7 @@
         <div class="logo-badge">NDS</div>
         <div class="title-group">
           <h1>NDS Web Emulator</h1>
-          <span class="version-badge" id="app-version">v0.7.9</span>
+          <span class="version-badge" id="app-version">v0.8.0</span>
         </div>
       </div>
 
@@ -137,6 +137,9 @@
 
       <!-- Acciones de Cabecera -->
       <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" id="btn-header-pkhex" title="PKHeX Web Studio - Editor de Partidas Pokémon (.sav)">
+          💉 <span class="btn-text">PKHeX</span>
+        </button>
         <button class="btn btn-secondary btn-sm btn-open-vault" id="btn-open-vault" title="Bóveda de Partidas y Copias de Seguridad Time-Machine">
           🛡️ <span class="btn-text">Bóveda</span>
         </button>
@@ -595,7 +598,7 @@
               <button class="btn btn-secondary btn-sm" id="btn-force-git-refresh" style="border-color: var(--color-primary); color: var(--color-primary);">
                 🔄 Refrescar desde GitHub
               </button>
-              <span style="font-size: 11px; color: var(--text-muted);">Versión: <strong>v0.7.9</strong></span>
+              <span style="font-size: 11px; color: var(--text-muted);">Versión: <strong>v0.8.0</strong></span>
             </div>
           </div>
         </div>
@@ -612,7 +615,7 @@
         <div class="modal-header">
           <div class="vault-modal-title-group">
             <h3>🛡️ Bóveda de Partidas Time-Machine</h3>
-            <span class="vault-badge-version">v0.7.9</span>
+            <span class="vault-badge-version">v0.8.0</span>
           </div>
           <button class="btn-close" id="btn-close-vault">&times;</button>
         </div>
@@ -669,6 +672,161 @@
       </div>
     </div>
 
+    <!-- Modal de Lanzamiento y Preparación de Juego -->
+    <div id="game-launcher-modal" class="modal-backdrop launcher-modal-backdrop" style="display: none; z-index: 10005;">
+      <div class="modal-content launcher-modal-content">
+        <div class="modal-header launcher-modal-header">
+          <div class="launcher-title-group">
+            <span class="launcher-badge">NDS</span>
+            <h3 id="launcher-game-title">Pokemon - Edicion Plata SoulSilver</h3>
+          </div>
+          <button class="btn-close" id="btn-close-launcher">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Tarjeta de Información de la ROM -->
+          <div class="launcher-rom-card">
+            <div class="launcher-rom-icon">🎮</div>
+            <div class="launcher-rom-details">
+              <h4 id="launcher-rom-filename">Pokemon - Edicion Plata SoulSilver.nds</h4>
+              <div class="launcher-rom-meta">
+                <span id="launcher-rom-size">NDS ROM</span>
+                <span class="launcher-rom-dot">•</span>
+                <span id="launcher-rom-format">WebAssembly Ready</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tarjeta de Estado del Archivo de Guardado (.sav) -->
+          <div class="launcher-save-card">
+            <div class="launcher-save-header">
+              <div class="launcher-save-icon">💾</div>
+              <div class="launcher-save-info">
+                <h4>Partida Asociada (.sav)</h4>
+                <p id="launcher-save-status-text">Buscando partida vinculada...</p>
+              </div>
+              <span class="save-status-pill" id="launcher-save-pill">Detectando</span>
+            </div>
+            
+            <div class="launcher-save-meta-grid">
+              <div class="meta-item">
+                <span class="meta-label">Ubicación:</span>
+                <span class="meta-val" id="launcher-save-location">Bóveda + DB</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Último Guardado:</span>
+                <span class="meta-val" id="launcher-save-time">-</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Tamaño .sav:</span>
+                <span class="meta-val" id="launcher-save-size">-</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Bóveda:</span>
+                <span class="meta-val" id="launcher-save-backups">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botones Principales de Decisión (Iniciar Juego / PKHeX) -->
+          <div class="launcher-main-actions">
+            <button class="btn btn-primary btn-glow btn-lg btn-launcher-play" id="btn-launcher-start-game">
+              ▶️ Iniciar Juego
+            </button>
+            <button class="btn btn-pkhex btn-glow btn-lg btn-launcher-pkhex" id="btn-launcher-open-pkhex">
+              💉 Abrir en PKHeX (Editor)
+            </button>
+          </div>
+
+          <!-- Acciones Secundarias de Gestión de Guardado -->
+          <div class="launcher-secondary-actions">
+            <button class="btn btn-secondary btn-sm" id="btn-launcher-open-vault" title="Ver historial de copias Time-Machine de este juego">
+              🛡️ Bóveda (.sav)
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btn-launcher-export-sav" title="Descargar este archivo .sav">
+              📤 Descargar .sav
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btn-launcher-import-sav" title="Cargar un archivo .sav externo para este juego">
+              📥 Importar .sav
+            </button>
+            <input type="file" id="launcher-sav-input" accept=".sav,.SAV,.dsv,.DSV" style="display: none;">
+          </div>
+        </div>
+
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 11px; color: var(--text-dim);">💡 Puedes editar tus Pokémon antes de arrancar o jugar directamente</span>
+          <button class="btn btn-ghost btn-sm" id="btn-launcher-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal PKHeX Web Studio & Save Editor -->
+    <div id="pkhex-modal" class="modal-backdrop pkhex-modal-backdrop" style="display: none; z-index: 10006;">
+      <div class="modal-content pkhex-modal-content">
+        <div class="modal-header pkhex-modal-header">
+          <div class="pkhex-title-group">
+            <span class="pkhex-logo-badge">PKHeX</span>
+            <h3>💉 PKHeX Save Studio & Editor</h3>
+            <span class="vault-badge-version">v0.8.0</span>
+            <span class="pkhex-rom-badge" id="pkhex-active-rom-badge">Pokemon - Edicion Plata SoulSilver.sav</span>
+          </div>
+          <div class="pkhex-header-controls">
+            <button class="btn btn-ghost btn-sm" id="btn-pkhex-toggle-fullscreen" title="Pantalla Completa">⛶</button>
+            <button class="btn-close" id="btn-close-pkhex">&times;</button>
+          </div>
+        </div>
+
+        <!-- Barra de Transferencia de Guardados PKHeX -->
+        <div class="pkhex-bridge-bar">
+          <div class="bridge-left">
+            <button class="btn btn-primary btn-sm btn-glow" id="btn-pkhex-download-sav" title="Descarga la partida activa para abrirla en PKHeX">
+              📥 1. Descargar .sav Actual
+            </button>
+            <div class="engine-picker-group">
+              <label for="pkhex-engine-select" class="engine-label">Motor:</label>
+              <select id="pkhex-engine-select" class="form-select pkhex-engine-select">
+                <option value="https://pkhex-web.github.io" selected>PKHeX Web (Blazor WASM)</option>
+                <option value="https://pkmds.app">PKMDS Web (PKHeX.Core)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="bridge-center">
+            <!-- Zona interactiva para soltar o subir el .sav exportado desde PKHeX -->
+            <div class="pkhex-dropzone" id="pkhex-sav-dropzone" title="Arrastra aquí el .sav exportado desde PKHeX o pulsa para seleccionarlo">
+              <input type="file" id="pkhex-sav-file-input" accept=".sav,.SAV,.dsv,.DSV" style="display: none;">
+              <span class="dropzone-icon">📤</span>
+              <span class="dropzone-text" id="pkhex-dropzone-label"><strong>2. Aplicar .sav Editado</strong> (Soltar archivo aquí o clic)</span>
+            </div>
+          </div>
+
+          <div class="bridge-right">
+            <button class="btn btn-success btn-sm btn-glow btn-pkhex-play" id="btn-pkhex-play-game" title="Arranca el emulador con la partida editada">
+              ▶️ 3. ¡Iniciar Juego!
+            </button>
+          </div>
+        </div>
+
+        <!-- Guía Rápida Plegable de 5 Pasos -->
+        <div class="pkhex-guide-banner" id="pkhex-guide-banner">
+          <div class="guide-step"><span>1️⃣</span> Pulsa <strong>Descargar .sav</strong></div>
+          <div class="guide-step"><span>2️⃣</span> En PKHeX abajo pulsa <strong>Open...</strong> y selecciona tu <code>.sav</code></div>
+          <div class="guide-step"><span>3️⃣</span> Modifica Pokémon, cajas, IVs, EVs, dinero u objetos</div>
+          <div class="guide-step"><span>4️⃣</span> En PKHeX pulsa <strong>Export SAV...</strong></div>
+          <div class="guide-step"><span>5️⃣</span> Suelta el archivo en <strong>Aplicar .sav Editado</strong> y pulsa <strong>▶️ ¡Iniciar Juego!</strong></div>
+        </div>
+
+        <!-- Contenedor del Iframe de PKHeX -->
+        <div class="pkhex-frame-container" id="pkhex-frame-container">
+          <div class="pkhex-frame-loading" id="pkhex-frame-loading">
+            <div class="spinner-neon"></div>
+            <p>Iniciando PKHeX Web Studio...</p>
+          </div>
+          <iframe id="pkhex-iframe" class="pkhex-iframe" src="about:blank" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal Emergente de Confirmación de Guardado y Descarga de .sav -->
     <div id="save-confirm-modal" class="modal-backdrop" style="display: none; z-index: 10000;">
       <div class="modal-content save-confirm-content">
@@ -708,11 +866,11 @@
   <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.7.4.3.min.js"></script>
 
   <!-- Scripts del Emulador con cache-busting -->
-  <script src="js/cloud-save-manager.js?v=0.7.9"></script>
-  <script src="js/save-manager.js?v=0.7.9"></script>
-  <script src="js/gamepad.js?v=0.7.9"></script>
-  <script src="js/touch-controls.js?v=0.7.9"></script>
-  <script src="js/app.js?v=0.7.9"></script>
+  <script src="js/cloud-save-manager.js?v=0.8.0"></script>
+  <script src="js/save-manager.js?v=0.8.0"></script>
+  <script src="js/gamepad.js?v=0.8.0"></script>
+  <script src="js/touch-controls.js?v=0.8.0"></script>
+  <script src="js/app.js?v=0.8.0"></script>
 </body>
 </html>
 

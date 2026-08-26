@@ -1,20 +1,22 @@
 # 🎮 NDS Web Emulator (ROG Ally & Safari Edition)
 
-[![Version](https://img.shields.io/badge/version-v0.7.9-00f0ff.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-v0.8.0-00f0ff.svg)](./VERSION)
 [![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS%20|%20Opera%20GX-ff0055.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssembly (DeSmuME / melonDS core), optimizado específicamente para:
-1. **🚀 Máxima Fluidez & 60 FPS en Safari iOS**: Optimizaciones en el motor WebAssembly (DSP de audio ultrarrápido sin interpolación costosa, latencia de audio adaptada a WebKit para evitar parones, selector de Frameskip y aceleración GPU nativa por capas `translate3d`).
-2. **🕹️ Corrección Total de Gatillos L y R**: Inyección limpia de botones directos C-WASM sin disparos accidentales de funciones de pantalla (Screen Swap) ni pantallas en blanco.
-3. **🛡️ Sistema Acorazado de Guardado & Bóveda Time-Machine**: Historial con hasta 30 snapshots automáticos por juego, prevención total de sobreescritura con SRAM en blanco, resolución inteligente de conflictos por marcas de tiempo y restauración con 1 clic.
-4. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
-5. **Acceso Directo a ROMs Recientes (.nds)**: Lista de juegos jugados en orden de última partida para jugar con 1 clic sin tener que navegar por archivos ni volver a seleccionarlos.
-6. **📱 Controles Táctiles Optimizados para Safari iOS**: Geometría ajustada anti-desborde lateral en pantallas móviles, alineación perfecta de Select y Start a la altura inferior de la cruceta, selector de opacidad y respuesta háptica instantánea.
-7. **⚙️ Menú de Configuración en Bienvenida & Ajustes Reales en Partida**: Panel dedicado en pantalla principal para gestión de PubNub, Bóveda, frameskip y carpetas locales; y ajustes en vivo para sonido (volumen, activación, desbloqueo), filtros gráficos (Pixel Art, Smooth, CRT), velocidad, salto de cuadros y núcleos.
-8. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
-9. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
-10. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
+1. **💉 Integración Total con PKHeX Web Studio**: Edita tus partidas `.sav` (Pokémon, dinero, medallas, objetos, cajas del PC, IVs/EVs, shinies) directamente desde el emulador con sincronización bidireccional y carga automática antes de iniciar la partida.
+2. **🚀 Panel de Preparación y Lanzamiento de Juegos**: Al seleccionar un juego o pulsar en recientes, el emulador no arranca de golpe; te permite elegir entre iniciar el juego o abrir PKHeX, mostrando el estado de la partida vinculada.
+3. **🚀 Máxima Fluidez & 60 FPS en Safari iOS**: Optimizaciones en el motor WebAssembly (DSP de audio ultrarrápido sin interpolación costosa, latencia de audio adaptada a WebKit para evitar parones, selector de Frameskip y aceleración GPU nativa por capas `translate3d`).
+4. **🕹️ Corrección Total de Gatillos L y R**: Inyección limpia de botones directos C-WASM sin disparos accidentales de funciones de pantalla (Screen Swap) ni pantallas en blanco.
+5. **🛡️ Sistema Acorazado de Guardado & Bóveda Time-Machine**: Historial con hasta 30 snapshots automáticos por juego, prevención total de sobreescritura con SRAM en blanco, resolución inteligente de conflictos por marcas de tiempo y restauración con 1 clic.
+6. **☁️ Sincronización en la Nube con PubNub (Cloud Saves)**: Tu partida se descarga automáticamente de la nube al iniciar el juego en cualquier dispositivo y se sobreescribe en la nube cada vez que guardas en Pokémon.
+7. **Acceso Directo a ROMs Recientes (.nds)**: Lista de juegos jugados en orden de última partida para jugar o editar en PKHeX con 1 clic sin tener que navegar por archivos ni volver a seleccionarlos.
+8. **📱 Controles Táctiles Optimizados para Safari iOS**: Geometría ajustada anti-desborde lateral en pantallas móviles, alineación perfecta de Select y Start a la altura inferior de la cruceta, selector de opacidad y respuesta háptica instantánea.
+9. **⚙️ Menú de Configuración en Bienvenida & Ajustes Reales en Partida**: Panel dedicado en pantalla principal para gestión de PubNub, Bóveda, frameskip y carpetas locales; y ajustes en vivo para sonido (volumen, activación, desbloqueo), filtros gráficos (Pixel Art, Smooth, CRT), velocidad, salto de cuadros y núcleos.
+10. **Asus ROG Ally**: Mando integrado XInput reconocido automáticamente, pantalla táctil interactiva y modo de pantalla panorámica 16:9.
+11. **Opera GX (Live Server)**: Ejecución 100% estática y ultrarrápida sin necesidad de compilar, con enrutador de teclado directo C-WASM (`simulateInput`).
+12. **Guardado Directo en Disco & Auto-Sobreescritura**: Vinculación de carpeta local (`C:\Users\cgzla\Documents\SoulSilver`) para sobreescribir automáticamente tus partidas `.sav` en PC.
 
 ---
 
@@ -31,6 +33,29 @@ Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssemb
 4. Haz clic en **"📂 Seleccionar ROM (.nds)"** o en **"📁 Abrir Juego desde Carpeta"** seleccionando:
    `C:\Users\cgzla\Documents\SoulSilver\Pokemon - Edicion Plata SoulSilver.nds`
 5. ¡A jugar!
+
+---
+
+## 💉 PKHeX Web Studio & Panel de Preparación de Juego
+
+A partir de la versión **`v0.8.0`**, el emulador incorpora una suite integrada de edición de guardados de Pokémon:
+
+1. **🚀 Panel de Preparación**: Al seleccionar una ROM `.nds` o pulsar en un juego reciente, no se inicia la emulación inmediatamente. Se abre un panel interactivo que muestra:
+   - Nombre y peso de la ROM.
+   - Estado de la partida `.sav` asociada (tamaño, última modificación, snapshots en Bóveda y sincronización en la nube).
+   - Botón **`▶️ Iniciar Juego`** para comenzar inmediatamente.
+   - Botón **`💉 Abrir en PKHeX`** para editar la partida antes de jugar.
+   - Acceso rápido a la **Bóveda Time-Machine**, exportar e importar `.sav`.
+
+2. **💉 Flujo de Edición con PKHeX**:
+   - Pulsa **`💉 Abrir en PKHeX`** en el panel de lanzamiento o en cualquier juego reciente.
+   - Pulsa **`📥 1. Descargar .sav Actual`** para obtener la partida activa del juego.
+   - En la ventana inferior de PKHeX (o PKMDS), abre el archivo `.sav` descargado con el botón **"Open..."**.
+   - Modifica lo que desees: Pokémon en cajas o equipo, IVs (31), EVs (252), movimientos, shininess, objetos de la mochila, dinero, medallas, etc.
+   - Exporta la partida en PKHeX pulsando **"Export SAV..."**.
+   - Arrastra o selecciona el archivo exportado en **`📤 2. Aplicar .sav Editado`**.
+   - ¡El emulador inyecta automáticamente los cambios en IndexedDB, en la Bóveda Time-Machine, en disco y en la Nube!
+   - Pulsa **`▶️ 3. Iniciar Juego`** y tu partida arrancará exactamente con las modificaciones que hiciste en PKHeX.
 
 ---
 

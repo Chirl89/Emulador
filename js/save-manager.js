@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Save Manager
  * Gestor acorazado de partidas, Bóveda Time-Machine, prevención de pérdidas y sincronización
- * Versión: v0.7.9
+ * Versión: v0.8.0
  */
 
 class SaveManager {
@@ -1066,6 +1066,134 @@ class SaveManager {
         }
       };
     } catch (err) {}
+  }
+
+  /**
+   * Obtiene información detallada del archivo de guardado para el modal de lanzamiento
+   */
+  async getSaveFileInfo(romName) {
+    const baseName = this.sanitizeName(romName || this.currentRomName);
+    const filename = `${baseName}.sav`;
+    
+    const record = await this.getLocalSaveRecord(baseName);
+    const backups = await this.getBackupsForRom(baseName);
+    
+    let exists = false;
+    let size = 0;
+    let timestamp = 0;
+    let data = null;
+    let location = this.isIOS ? 'iOS Bóveda & DB' : 'IndexedDB Protegida';
+
+    if (record && record.data && record.data.length > 0) {
+      exists = true;
+      size = record.size || record.data.byteLength || 0;
+      timestamp = record.timestamp || 0;
+      data = record.data instanceof Uint8Array ? record.data : new Uint8Array(record.data);
+    } else if (backups && backups.length > 0 && backups[0].data) {
+      exists = true;
+      size = backups[0].size || backups[0].data.byteLength || 0;
+      timestamp = backups[0].timestamp || 0;
+      data = backups[0].data instanceof Uint8Array ? backups[0].data : new Uint8Array(backups[0].data);
+    }
+
+    if (this.directoryHandle) {
+      location = `Disco (${this.directoryHandle.name || 'SoulSilver'}) + Bóveda`;
+    }
+
+    const sizeFormatted = size > 0 ? (size >= 1024 ? `${(size / 1024).toFixed(0)} KB` : `${size} B`) : '512 KB';
+    const timeFormatted = timestamp > 0 ? new Date(timestamp).toLocaleString() : 'Sin partida previa';
+
+    return {
+      exists,
+      filename,
+      baseName,
+      size,
+      sizeFormatted,
+      timestamp,
+      timeFormatted,
+      location,
+      backupsCount: backups ? backups.length : 0,
+      data
+    };
+  }
+
+  /**
+   * Descarga directamente el archivo .sav actual sin prompts (para PKHeX)
+   */
+  async exportSavFileDirect(romName) {
+    const baseName = this.sanitizeName(romName || this.currentRomName);
+    const filename = `${baseName}.sav`;
+    const saveInfo = await this.getSaveFileInfo(baseName);
+    
+    let uint8 = saveInfo.data;
+    if (!uint8 || uint8.byteLength === 0) {
+      // Si no existe guardado previo aún, generar un bloque SRAM NDS inicial de 512KB limpio
+      uint8 = new Uint8Array(512 * 1024);
+      uint8.fill(0xFF);
+    }
+
+    this.generateSavFileDownload(uint8, filename);
+    return uint8;
+  }
+
+  /**
+   * Importa y asegura un archivo .sav editado con PKHeX
+   */
+  async importPkhexEditedSave(romName, data) {
+    if (!data) return false;
+    const uint8 = data instanceof Uint8Array ? data : (data instanceof ArrayBuffer ? new Uint8Array(data) : null);
+    if (!uint8 || uint8.byteLength === 0) return false;
+
+    const baseName = this.sanitizeName(romName || this.currentRomName);
+    const filename = `${baseName}.sav`;
+
+    try {
+      // 1. Crear Snapshot de Bóveda con etiqueta 'pkhex'
+      await this.createBackupSnapshot(baseName, uint8, 'pkhex', 'Editado con PKHeX Studio');
+
+      // 2. Guardar en ranuras primarias de IndexedDB
+      await this.saveToIndexedDB(filename, uint8);
+      await this.saveToIndexedDB(`${baseName}.sav`, uint8);
+      await this.saveToIndexedDB(`game.sav`, uint8);
+      await this.saveToIndexedDB(`last_known_good_${baseName}.sav`, uint8);
+
+      // 3. Escribir en carpeta en disco si está vinculada
+      if (this.directoryHandle) {
+        try {
+          const fileHandle = await this.directoryHandle.getFileHandle(filename, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(uint8);
+          await writable.close();
+        } catch (e) {
+          console.warn('Error escribiendo save de PKHeX en disco:', e);
+        }
+      }
+
+      // 4. Inyectar en emulador si está corriendo
+      if (window.EJS_emulator?.gameManager?.FS) {
+        try {
+          const gm = window.EJS_emulator.gameManager;
+          const targetPath = gm.getSaveFilePath?.() || `/data/saves/${baseName}.sav`;
+          if (gm.FS.analyzePath('/data/saves').exists) {
+            gm.FS.writeFile(targetPath, uint8);
+            gm.FS.writeFile(`/data/saves/game.sav`, uint8);
+          }
+        } catch (e) {}
+      }
+
+      // 5. Sincronizar en la Nube
+      if (window.cloudSaveManager && window.cloudSaveManager.isConfigured()) {
+        window.cloudSaveManager.uploadCloudSave(uint8, baseName);
+      }
+
+      this.lastSavedHash = this.computeHash(uint8);
+      this.showToast(`💉 Partida editada con PKHeX guardada con éxito (${(uint8.byteLength/1024).toFixed(0)} KB)`, 'success');
+      return true;
+    } catch (err) {
+      console.error('Error importando guardado de PKHeX:', err);
+      this.showToast('⚠️ Error al aplicar el archivo guardado de PKHeX.', 'warning');
+      return false;
+    }
   }
 
   sanitizeName(name) {

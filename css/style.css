@@ -1,6 +1,6 @@
 /* ==========================================================================
    NDS Web Emulator - ROG Ally & Safari Edition
-   Estilos Principales v0.7.9
+   Estilos Principales v0.8.0
    ========================================================================== */
 
 :root {
@@ -1663,6 +1663,563 @@ body.is-emulating .emulator-container .game-player,
 
 .welcome-config-modal-content {
   max-width: 600px;
+}
+
+/* ==========================================================================
+   Botón PKHeX & Acentos Neón Púrpura / Magenta
+   ========================================================================== */
+.btn-pkhex {
+  background: linear-gradient(135deg, #a855f7, #ec4899) !important;
+  border: 1px solid #c084fc !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.35);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.btn-pkhex:hover {
+  background: linear-gradient(135deg, #9333ea, #db2777) !important;
+  border-color: #f0abfc !important;
+  box-shadow: 0 0 20px rgba(236, 72, 153, 0.6) !important;
+  transform: translateY(-2px) scale(1.02);
+}
+
+.btn-pkhex:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.btn-pkhex-recent {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #d8b4fe;
+  font-weight: 600;
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.btn-pkhex-recent:hover {
+  background: rgba(168, 85, 247, 0.35);
+  border-color: #c084fc;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+}
+
+/* ==========================================================================
+   Modal de Lanzamiento y Preparación de Juego
+   ========================================================================== */
+.launcher-modal-content {
+  max-width: 580px;
+  border-color: rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 35px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 240, 255, 0.15);
+  animation: modalPopIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.launcher-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.launcher-badge {
+  background: linear-gradient(135deg, var(--color-rog), var(--color-accent));
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.5px;
+}
+
+.launcher-rom-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+
+.launcher-rom-icon {
+  font-size: 32px;
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  width: 54px;
+  height: 54px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.launcher-rom-details h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.launcher-rom-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.launcher-rom-dot {
+  color: var(--text-dim);
+}
+
+.launcher-save-card {
+  background: rgba(24, 27, 42, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.launcher-save-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.launcher-save-icon {
+  font-size: 24px;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.launcher-save-info {
+  flex: 1;
+}
+
+.launcher-save-info h4 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--color-success);
+  margin-bottom: 2px;
+}
+
+.launcher-save-info p {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.save-status-pill {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid var(--color-success);
+  color: var(--color-success);
+  white-space: nowrap;
+}
+
+.save-status-pill.pill-new {
+  background: rgba(255, 184, 0, 0.15);
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.save-status-pill.pill-pkhex {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: #c084fc;
+  color: #f0abfc;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
+}
+
+.launcher-save-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meta-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.meta-val {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.launcher-main-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.btn-launcher-play {
+  background: linear-gradient(135deg, #00f0ff, #00b4d8) !important;
+  color: #050b14 !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  padding: 13px 18px !important;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.45) !important;
+}
+
+.btn-launcher-play:hover {
+  background: linear-gradient(135deg, #38bdf8, #00f0ff) !important;
+  box-shadow: 0 0 26px rgba(0, 240, 255, 0.7) !important;
+  transform: translateY(-2px);
+}
+
+.btn-launcher-pkhex {
+  font-size: 14px !important;
+  padding: 13px 18px !important;
+}
+
+.launcher-secondary-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 12px;
+}
+
+.launcher-secondary-actions .btn {
+  flex: 1;
+  min-width: 120px;
+  font-size: 11.5px;
+  padding: 7px 10px;
+}
+
+/* ==========================================================================
+   Modal PKHeX Web Studio & Save Editor
+   ========================================================================== */
+.pkhex-modal-backdrop {
+  z-index: 10006 !important;
+  padding: 10px;
+}
+
+.pkhex-modal-content {
+  width: 96vw;
+  max-width: 1320px;
+  height: 94vh;
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  background: #0d0f18;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.9), 0 0 25px rgba(168, 85, 247, 0.2);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all 0.25s ease;
+}
+
+.pkhex-modal-content.is-fullscreen {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+  border: none !important;
+}
+
+.pkhex-modal-header {
+  padding: 12px 18px;
+  background: rgba(18, 20, 32, 0.95);
+  border-bottom: 1px solid rgba(168, 85, 247, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.pkhex-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pkhex-logo-badge {
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.6px;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+}
+
+.pkhex-title-group h3 {
+  font-size: 15px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #ffffff, #d8b4fe);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.pkhex-rom-badge {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-family: monospace;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.pkhex-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Barra de Transferencia de Guardados PKHeX */
+.pkhex-bridge-bar {
+  background: rgba(14, 16, 26, 0.98);
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.bridge-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.engine-picker-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.engine-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pkhex-engine-select {
+  font-size: 11px;
+  padding: 5px 8px;
+  background: rgba(24, 27, 42, 0.9);
+  border-color: rgba(168, 85, 247, 0.35);
+  color: #e2e8f0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.bridge-center {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  justify-content: center;
+}
+
+.pkhex-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(168, 85, 247, 0.08);
+  border: 1.5px dashed rgba(168, 85, 247, 0.45);
+  border-radius: var(--radius-md);
+  padding: 6px 14px;
+  cursor: pointer;
+  width: 100%;
+  max-width: 440px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.pkhex-dropzone:hover,
+.pkhex-dropzone.drag-over {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: #e879f9;
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.35);
+  transform: scale(1.02);
+}
+
+.pkhex-dropzone.success-flash {
+  background: rgba(0, 255, 136, 0.2) !important;
+  border-color: var(--color-success) !important;
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.5) !important;
+}
+
+.dropzone-icon {
+  font-size: 16px;
+}
+
+.dropzone-text {
+  font-size: 11.5px;
+  color: #f1f5f9;
+}
+
+.dropzone-text strong {
+  color: #f0abfc;
+}
+
+.bridge-right {
+  display: flex;
+  align-items: center;
+}
+
+.btn-pkhex-play {
+  background: linear-gradient(135deg, #00ff88, #00b4d8) !important;
+  color: #031510 !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  padding: 7px 14px !important;
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.4) !important;
+}
+
+.btn-pkhex-play:hover {
+  background: linear-gradient(135deg, #34d399, #00f0ff) !important;
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.6) !important;
+  transform: translateY(-1px);
+}
+
+/* Guía Rápida de 5 Pasos */
+.pkhex-guide-banner {
+  background: rgba(10, 12, 20, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.guide-step {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.guide-step strong {
+  color: var(--color-primary);
+}
+
+.guide-step code {
+  color: var(--color-warning);
+  font-family: monospace;
+}
+
+/* Iframe y Contenedor */
+.pkhex-frame-container {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #111422;
+  overflow: hidden;
+}
+
+.pkhex-frame-loading {
+  position: absolute;
+  inset: 0;
+  background: #0d0e17;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: opacity 0.3s ease;
+}
+
+.pkhex-frame-loading.hidden {
+  opacity: 0;
+  pointer-events: none;
+  display: none;
+}
+
+.pkhex-frame-loading p {
+  color: #c084fc;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.pkhex-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+/* Responsive para Launcher y PKHeX */
+@media (max-width: 680px) {
+  .launcher-main-actions {
+    grid-template-columns: 1fr;
+  }
+  
+  .launcher-save-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pkhex-bridge-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .bridge-left, .bridge-center, .bridge-right {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .bridge-left .btn, .bridge-right .btn {
+    width: 100%;
+  }
+
+  .pkhex-guide-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
 }
 
 

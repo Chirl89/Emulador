@@ -1,13 +1,17 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.7.9
+ * Versión: v0.8.0
  */
 
 class NDSEmulatorApp {
   constructor() {
     this.currentRomBlob = null;
     this.currentRomName = '';
+    this.pendingLaunchRom = null;
+    this.activePkhexRom = null;
+    this.pkhexEngine = localStorage.getItem('nds_pkhex_engine') || 'https://pkhex-web.github.io';
+    this.isPkhexFullscreen = false;
     this.isEmulating = false;
     this.isFastForward = false;
     this.isPaused = false;
@@ -797,10 +801,13 @@ class NDSEmulatorApp {
     const quickLoadBtn = document.getElementById('btn-quick-loadstate');
     if (quickLoadBtn) quickLoadBtn.addEventListener('click', () => this.quickLoadState());
 
-    // 8. Integración de la Bóveda de Partidas (Backup Vault)
+    // 8. Integración del Lanzador de Juegos y PKHeX Web Studio
+    this.initLauncherAndPkhexUI();
+
+    // 9. Integración de la Bóveda de Partidas (Backup Vault)
     this.initVaultUI();
 
-    // 9. Desbloqueo de Audio Safari en el primer toque
+    // 10. Desbloqueo de Audio Safari en el primer toque
     const unlockAudio = () => {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
@@ -872,6 +879,352 @@ class NDSEmulatorApp {
     window.addEventListener('resize', handleResizeOrRotate);
     window.addEventListener('orientationchange', () => setTimeout(handleResizeOrRotate, 150));
     this.updateDeviceStatusBadge();
+  }
+
+  /**
+   * Inicializa la interfaz y eventos del Lanzador de Juego y de PKHeX Web Studio
+   */
+  initLauncherAndPkhexUI() {
+    // 1. Botón PKHeX en cabecera principal
+    const headerPkhexBtn = document.getElementById('btn-header-pkhex');
+    if (headerPkhexBtn) {
+      headerPkhexBtn.addEventListener('click', () => {
+        const activeName = this.pendingLaunchRom?.name || this.currentRomName || 'Pokemon - Edicion Plata SoulSilver.nds';
+        this.openPkhexStudio(activeName, this.pendingLaunchRom?.blob || this.currentRomBlob);
+      });
+    }
+
+    // 2. Eventos del Modal de Lanzamiento (#game-launcher-modal)
+    const btnCloseLauncher = document.getElementById('btn-close-launcher');
+    const btnCancelLauncher = document.getElementById('btn-launcher-cancel');
+    const btnLauncherStartGame = document.getElementById('btn-launcher-start-game');
+    const btnLauncherOpenPkhex = document.getElementById('btn-launcher-open-pkhex');
+    const btnLauncherOpenVault = document.getElementById('btn-launcher-open-vault');
+    const btnLauncherExportSav = document.getElementById('btn-launcher-export-sav');
+    const btnLauncherImportSav = document.getElementById('btn-launcher-import-sav');
+    const launcherSavInput = document.getElementById('launcher-sav-input');
+
+    if (btnCloseLauncher) btnCloseLauncher.addEventListener('click', () => this.closeGameLauncher());
+    if (btnCancelLauncher) btnCancelLauncher.addEventListener('click', () => this.closeGameLauncher());
+
+    if (btnLauncherStartGame) {
+      btnLauncherStartGame.addEventListener('click', async () => {
+        this.closeGameLauncher();
+        const rom = this.pendingLaunchRom;
+        if (rom && (rom.blob || rom.file)) {
+          await this.startEmulator(rom.blob || rom.file, rom.name);
+        } else if (this.currentRomBlob) {
+          await this.startEmulator(this.currentRomBlob, this.currentRomName);
+        }
+      });
+    }
+
+    if (btnLauncherOpenPkhex) {
+      btnLauncherOpenPkhex.addEventListener('click', () => {
+        const rom = this.pendingLaunchRom;
+        this.openPkhexStudio(rom?.name, rom?.blob);
+      });
+    }
+
+    if (btnLauncherOpenVault) {
+      btnLauncherOpenVault.addEventListener('click', () => {
+        this.closeGameLauncher();
+        this.toggleVaultModal(true);
+      });
+    }
+
+    if (btnLauncherExportSav) {
+      btnLauncherExportSav.addEventListener('click', async () => {
+        const romName = this.pendingLaunchRom?.name || this.currentRomName;
+        if (window.saveManager) {
+          await window.saveManager.exportSavFileDirect(romName);
+        }
+      });
+    }
+
+    if (btnLauncherImportSav && launcherSavInput) {
+      btnLauncherImportSav.addEventListener('click', () => launcherSavInput.click());
+      launcherSavInput.addEventListener('change', async (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          const file = e.target.files[0];
+          const romName = this.pendingLaunchRom?.name || this.currentRomName;
+          await this.handlePkhexSaveImport(file);
+          // Refrescar el estado del modal
+          await this.openGameLauncher(this.pendingLaunchRom?.file, romName, this.pendingLaunchRom?.blob);
+        }
+      });
+    }
+
+    // 3. Eventos del Modal PKHeX Studio (#pkhex-modal)
+    const btnClosePkhex = document.getElementById('btn-close-pkhex');
+    const btnPkhexFullscreen = document.getElementById('btn-pkhex-toggle-fullscreen');
+    const btnPkhexDownloadSav = document.getElementById('btn-pkhex-download-sav');
+    const pkhexEngineSelect = document.getElementById('pkhex-engine-select');
+    const pkhexDropzone = document.getElementById('pkhex-sav-dropzone');
+    const pkhexSavFileInput = document.getElementById('pkhex-sav-file-input');
+    const btnPkhexPlayGame = document.getElementById('btn-pkhex-play-game');
+
+    if (btnClosePkhex) btnClosePkhex.addEventListener('click', () => this.closePkhexStudio());
+    if (btnPkhexFullscreen) btnPkhexFullscreen.addEventListener('click', () => this.togglePkhexFullscreen());
+
+    if (btnPkhexDownloadSav) {
+      btnPkhexDownloadSav.addEventListener('click', async () => {
+        const romName = this.activePkhexRom || this.pendingLaunchRom?.name || this.currentRomName;
+        if (window.saveManager) {
+          await window.saveManager.exportSavFileDirect(romName);
+          window.saveManager.showToast(`📥 Partida descargada. Ábrela en PKHeX abajo ("Open...").`, 'info');
+        }
+      });
+    }
+
+    if (pkhexEngineSelect) {
+      pkhexEngineSelect.addEventListener('change', (e) => {
+        this.pkhexEngine = e.target.value;
+        localStorage.setItem('nds_pkhex_engine', e.target.value);
+        const iframe = document.getElementById('pkhex-iframe');
+        const loader = document.getElementById('pkhex-frame-loading');
+        if (iframe) {
+          if (loader) loader.classList.remove('hidden');
+          iframe.src = this.pkhexEngine;
+        }
+      });
+    }
+
+    if (pkhexDropzone && pkhexSavFileInput) {
+      pkhexDropzone.addEventListener('click', () => pkhexSavFileInput.click());
+      pkhexSavFileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          this.handlePkhexSaveImport(e.target.files[0]);
+        }
+      });
+
+      pkhexDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        pkhexDropzone.classList.add('drag-over');
+      });
+
+      pkhexDropzone.addEventListener('dragleave', () => {
+        pkhexDropzone.classList.remove('drag-over');
+      });
+
+      pkhexDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        pkhexDropzone.classList.remove('drag-over');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          this.handlePkhexSaveImport(e.dataTransfer.files[0]);
+        }
+      });
+    }
+
+    if (btnPkhexPlayGame) {
+      btnPkhexPlayGame.addEventListener('click', async () => {
+        this.closePkhexStudio();
+        const rom = this.pendingLaunchRom;
+        const romName = this.activePkhexRom || rom?.name || this.currentRomName;
+        const romBlob = rom?.blob || this.currentRomBlob;
+        if (romBlob) {
+          await this.startEmulator(romBlob, romName);
+        }
+      });
+    }
+  }
+
+  /**
+   * Abre el Modal de Lanzamiento y Preparación de Juego antes de arrancar
+   */
+  async openGameLauncher(romFile, romName, romBlob) {
+    const finalName = romName || (romFile ? romFile.name : (this.currentRomName || 'Pokemon - Edicion Plata SoulSilver.nds'));
+    
+    let finalBlob = romBlob || romFile;
+    if (!finalBlob && romFile) finalBlob = romFile;
+    if (!finalBlob && this.currentRomBlob) finalBlob = this.currentRomBlob;
+
+    this.pendingLaunchRom = {
+      file: romFile,
+      name: finalName,
+      blob: finalBlob
+    };
+    this.currentRomName = finalName;
+    if (finalBlob) this.currentRomBlob = finalBlob;
+
+    if (window.saveManager) {
+      window.saveManager.currentRomName = finalName;
+    }
+
+    const modal = document.getElementById('game-launcher-modal');
+    const titleEl = document.getElementById('launcher-game-title');
+    const filenameEl = document.getElementById('launcher-rom-filename');
+    const sizeEl = document.getElementById('launcher-rom-size');
+    const statusTextEl = document.getElementById('launcher-save-status-text');
+    const pillEl = document.getElementById('launcher-save-pill');
+    const locEl = document.getElementById('launcher-save-location');
+    const timeEl = document.getElementById('launcher-save-time');
+    const saveSizeEl = document.getElementById('launcher-save-size');
+    const backupsEl = document.getElementById('launcher-save-backups');
+
+    const cleanTitle = finalName.replace(/\.(nds|zip|7z)$/i, '');
+    if (titleEl) titleEl.textContent = cleanTitle;
+    if (filenameEl) filenameEl.textContent = finalName;
+
+    if (finalBlob && finalBlob.size) {
+      if (sizeEl) sizeEl.textContent = this.formatFileSize(finalBlob.size);
+    } else if (sizeEl) {
+      sizeEl.textContent = 'NDS ROM';
+    }
+
+    // Consultar estado de la partida vinculada
+    if (window.saveManager) {
+      const info = await window.saveManager.getSaveFileInfo(finalName);
+      
+      if (info.exists) {
+        if (statusTextEl) statusTextEl.textContent = `Partida protegida: ${info.filename}`;
+        if (pillEl) {
+          pillEl.textContent = 'Guardada';
+          pillEl.className = 'save-status-pill';
+        }
+        if (timeEl) timeEl.textContent = info.timeFormatted;
+        if (saveSizeEl) saveSizeEl.textContent = info.sizeFormatted;
+        if (locEl) locEl.textContent = info.location;
+        if (backupsEl) backupsEl.textContent = `${info.backupsCount} snapshots`;
+      } else {
+        if (statusTextEl) statusTextEl.textContent = 'Partida nueva (Aún sin guardado registrado)';
+        if (pillEl) {
+          pillEl.textContent = 'Nueva';
+          pillEl.className = 'save-status-pill pill-new';
+        }
+        if (timeEl) timeEl.textContent = 'Al iniciar partida';
+        if (saveSizeEl) saveSizeEl.textContent = '512 KB (Auto)';
+        if (locEl) locEl.textContent = info.location;
+        if (backupsEl) backupsEl.textContent = '0 copias';
+      }
+    }
+
+    if (modal) {
+      modal.style.display = 'flex';
+    }
+  }
+
+  /**
+   * Cierra el modal de lanzamiento de juego
+   */
+  closeGameLauncher() {
+    const modal = document.getElementById('game-launcher-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  /**
+   * Abre la suite integrada de PKHeX Web Studio
+   */
+  async openPkhexStudio(romName, romBlob) {
+    const finalName = romName || this.pendingLaunchRom?.name || this.currentRomName || 'Pokemon - Edicion Plata SoulSilver.nds';
+    this.activePkhexRom = finalName;
+    this.currentRomName = finalName;
+    if (romBlob) this.currentRomBlob = romBlob;
+
+    if (window.saveManager) {
+      window.saveManager.currentRomName = finalName;
+    }
+
+    const modal = document.getElementById('pkhex-modal');
+    const badgeEl = document.getElementById('pkhex-active-rom-badge');
+    const iframe = document.getElementById('pkhex-iframe');
+    const loader = document.getElementById('pkhex-frame-loading');
+    const engineSelect = document.getElementById('pkhex-engine-select');
+
+    const baseName = window.saveManager ? window.saveManager.sanitizeName(finalName) : 'game';
+    if (badgeEl) badgeEl.textContent = `${baseName}.sav`;
+
+    const targetUrl = this.pkhexEngine || 'https://pkhex-web.github.io';
+    if (engineSelect) engineSelect.value = targetUrl;
+
+    if (iframe) {
+      if (loader) loader.classList.remove('hidden');
+      if (iframe.src !== targetUrl) {
+        iframe.src = targetUrl;
+        iframe.onload = () => {
+          if (loader) loader.classList.add('hidden');
+        };
+      } else {
+        if (loader) setTimeout(() => loader.classList.add('hidden'), 400);
+      }
+    }
+
+    // Cerrar launcher si estaba abierto
+    this.closeGameLauncher();
+
+    if (modal) {
+      modal.style.display = 'flex';
+    }
+
+    if (window.saveManager) {
+      window.saveManager.showToast(`💉 PKHeX Studio abierto para: ${baseName}.sav`, 'info');
+    }
+  }
+
+  /**
+   * Cierra el modal de PKHeX Studio
+   */
+  closePkhexStudio() {
+    const modal = document.getElementById('pkhex-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  /**
+   * Alterna la pantalla completa para el modal de PKHeX Studio
+   */
+  togglePkhexFullscreen() {
+    const content = document.querySelector('.pkhex-modal-content');
+    if (content) {
+      content.classList.toggle('is-fullscreen');
+      this.isPkhexFullscreen = content.classList.contains('is-fullscreen');
+    }
+  }
+
+  /**
+   * Procesa la importación de un guardado editado en PKHeX (soltado o seleccionado)
+   */
+  async handlePkhexSaveImport(fileOrBuffer) {
+    if (!fileOrBuffer) return;
+    const romName = this.activePkhexRom || this.pendingLaunchRom?.name || this.currentRomName;
+    const dropzone = document.getElementById('pkhex-sav-dropzone');
+    const label = document.getElementById('pkhex-dropzone-label');
+    const baseName = window.saveManager ? window.saveManager.sanitizeName(romName) : 'game';
+
+    try {
+      let uint8;
+      let fname = `${baseName}.sav`;
+
+      if (fileOrBuffer instanceof File || fileOrBuffer instanceof Blob) {
+        fname = fileOrBuffer.name || fname;
+        const ab = await fileOrBuffer.arrayBuffer();
+        uint8 = new Uint8Array(ab);
+      } else if (fileOrBuffer instanceof Uint8Array) {
+        uint8 = fileOrBuffer;
+      } else if (fileOrBuffer instanceof ArrayBuffer) {
+        uint8 = new Uint8Array(fileOrBuffer);
+      }
+
+      if (window.saveManager && uint8) {
+        const ok = await window.saveManager.importPkhexEditedSave(romName, uint8);
+        if (ok) {
+          if (dropzone) {
+            dropzone.classList.add('success-flash');
+            setTimeout(() => dropzone.classList.remove('success-flash'), 2000);
+          }
+          if (label) {
+            label.innerHTML = `<strong>✅ ¡${fname} inyectado!</strong> (${(uint8.byteLength/1024).toFixed(0)} KB) Listo para jugar`;
+          }
+          const pillEl = document.getElementById('launcher-save-pill');
+          if (pillEl) {
+            pillEl.textContent = 'Editado PKHeX';
+            pillEl.className = 'save-status-pill pill-pkhex';
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error procesando save de PKHeX:', err);
+      alert('Error al leer el archivo de guardado editado.');
+    }
   }
 
   /**
@@ -1187,7 +1540,7 @@ class NDSEmulatorApp {
         await window.saveManager.saveRom(romFile);
         this.renderRecentRoms();
       }
-      await this.startEmulator(romFile);
+      await this.openGameLauncher(romFile, romFile.name, romFile);
     } else if (!savFile) {
       alert('Por favor, selecciona un archivo de Nintendo DS válido (.nds, .zip o .7z)');
     }
@@ -1201,6 +1554,9 @@ class NDSEmulatorApp {
    * Inicializa el núcleo WASM con la ROM proporcionada
    */
   async startEmulator(file, customRomName) {
+    this.closeGameLauncher();
+    this.closePkhexStudio();
+
     if (customRomName) {
       this.currentRomName = customRomName;
     } else if (file && file.name) {
@@ -2180,27 +2536,26 @@ class NDSEmulatorApp {
           </div>
         </div>
         <div class="recent-rom-actions">
-          <button class="btn btn-primary btn-sm btn-play-recent" title="Jugar ahora">▶️ Jugar</button>
+          <button class="btn btn-pkhex-recent btn-sm btn-pkhex-recent-act" title="Abrir en PKHeX Studio">💉 PKHeX</button>
+          <button class="btn btn-primary btn-sm btn-play-recent" title="Preparar / Jugar">▶️ Jugar</button>
           <button class="btn btn-ghost btn-sm btn-delete-recent" title="Eliminar de recientes">🗑️</button>
         </div>
       `;
 
-      const launchGame = async (e) => {
+      const getRomBlob = () => {
+        if (!rom || !rom.data) return null;
+        const romName = rom.name || 'Pokemon - Edicion Plata SoulSilver.nds';
+        if (rom.data instanceof File) return rom.data;
+        if (rom.data instanceof Blob) return new File([rom.data], romName, { type: 'application/octet-stream' });
+        return new File([rom.data], romName, { type: 'application/octet-stream' });
+      };
+
+      const prepareRom = async (e) => {
         if (e) e.stopPropagation();
         try {
           if (rom && rom.data) {
             const romName = rom.name || 'Pokemon - Edicion Plata SoulSilver.nds';
-            let romBlob;
-            
-            if (rom.data instanceof File) {
-              romBlob = rom.data;
-            } else if (rom.data instanceof Blob) {
-              romBlob = new File([rom.data], romName, { type: 'application/octet-stream' });
-            } else if (rom.data instanceof Uint8Array || rom.data instanceof ArrayBuffer) {
-              romBlob = new File([rom.data], romName, { type: 'application/octet-stream' });
-            } else {
-              romBlob = new File([rom.data], romName, { type: 'application/octet-stream' });
-            }
+            const romBlob = getRomBlob();
 
             this.currentRomName = romName;
             this.currentRomBlob = romBlob;
@@ -2210,21 +2565,31 @@ class NDSEmulatorApp {
               window.saveManager.updateRomLastPlayed(romName);
             }
 
-            console.log(`[Recent ROM Launcher] Lanzando juego directo: ${romName} (${romBlob.size} bytes)`);
-            await this.startEmulator(romBlob, romName);
+            console.log(`[Recent ROM Launcher] Preparando juego: ${romName}`);
+            await this.openGameLauncher(null, romName, romBlob);
           } else {
             alert('Los datos de este juego no se encuentran en memoria. Por favor, vuelve a cargarlo con "Seleccionar ROM".');
           }
         } catch (err) {
-          console.error('Error lanzando ROM reciente:', err);
+          console.error('Error preparando ROM reciente:', err);
           alert('Error al abrir el juego. Por favor, selecciona el archivo .nds nuevamente con el botón "Seleccionar ROM".');
         }
       };
 
-      itemEl.addEventListener('click', launchGame);
+      const openPkhexDirect = async (e) => {
+        if (e) e.stopPropagation();
+        const romName = rom.name || 'Pokemon - Edicion Plata SoulSilver.nds';
+        const romBlob = getRomBlob();
+        await this.openPkhexStudio(romName, romBlob);
+      };
+
+      itemEl.addEventListener('click', prepareRom);
 
       const playBtn = itemEl.querySelector('.btn-play-recent');
-      if (playBtn) playBtn.addEventListener('click', launchGame);
+      if (playBtn) playBtn.addEventListener('click', prepareRom);
+
+      const pkhexBtn = itemEl.querySelector('.btn-pkhex-recent-act');
+      if (pkhexBtn) pkhexBtn.addEventListener('click', openPkhexDirect);
 
       const deleteBtn = itemEl.querySelector('.btn-delete-recent');
       if (deleteBtn) {
@@ -2282,7 +2647,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.7.9') {
+              if (key !== 'nds-emulator-v0.8.0') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2290,7 +2655,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.7.9').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.8.0').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);
