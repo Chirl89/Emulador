@@ -2,7 +2,7 @@
  * NDS Web Emulator - Save Manager
  * Gestor de persistencia directa: 1 único save local (.sav) con prioridad 1 y respaldo en la nube
  * Comparación exacta por marca de tiempo (timestamp) y purga obligatoria de saves sin fecha
- * Versión: v0.9.2
+ * Versión: v0.9.3
  */
 
 class SaveManager {
@@ -446,7 +446,7 @@ class SaveManager {
       return false;
     }
 
-    const baseName = this.sanitizeName(this.currentRomName);
+    const baseName = this.sanitizeName(customFileName || this.currentRomName);
     const filename = `${baseName}.sav`;
     const newHash = this.computeHash(uint8Data);
 
@@ -465,7 +465,9 @@ class SaveManager {
     // Marca de tiempo garantizada para Local y Nube
     const saveTimestamp = Date.now();
 
-    // 1. Guardar en el ÚNICO registro de IndexedDB
+    console.log(`💾 [Save Manager] Sobreescribiendo partida "${filename}" (${uint8Data.byteLength} B, Fecha: ${new Date(saveTimestamp).toLocaleTimeString()}, Origen: ${source})`);
+
+    // 1. Guardar y sobreescribir en el ÚNICO registro de IndexedDB
     await this.saveToIndexedDB(filename, uint8Data, saveTimestamp);
 
     // 2. Inyectar en la memoria virtual FS de RetroArch
@@ -473,7 +475,7 @@ class SaveManager {
       window.app.injectSaveFilesToFS(window.EJS_emulator.gameManager.FS, uint8Data, this.currentRomName);
     }
 
-    // 3. Escribir en carpeta en disco si está vinculada
+    // 3. Escribir y sobreescribir en carpeta en disco si está vinculada
     if (this.directoryHandle) {
       this.writeToDisk(filename, uint8Data).catch(() => {});
     }
@@ -746,14 +748,31 @@ class SaveManager {
   async saveRom(file) {
     if (!this.db || !file) return;
     try {
+      let romData = file;
+      let romSize = file.size || 0;
+
+      if (typeof file.arrayBuffer === 'function') {
+        try {
+          const buffer = await file.arrayBuffer();
+          if (buffer && buffer.byteLength > 0) {
+            romData = new Blob([buffer], { type: 'application/octet-stream' });
+            romSize = buffer.byteLength;
+          }
+        } catch (e) {
+          romData = file;
+        }
+      }
+
       const tx = this.db.transaction('roms', 'readwrite');
       const store = tx.objectStore('roms');
-      const cleanTitle = this.sanitizeName(file.name);
+      const cleanTitle = this.sanitizeName(file.name || this.currentRomName);
+      const name = file.name || this.currentRomName;
+
       store.put({
-        name: file.name,
+        name: name,
         cleanTitle: cleanTitle,
-        size: file.size,
-        data: file,
+        size: romSize,
+        data: romData,
         lastPlayed: Date.now()
       });
     } catch (err) {

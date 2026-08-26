@@ -2,7 +2,7 @@
  * NDS Web Emulator - Cloud Save Manager
  * Sincronización pasiva en la nube y persistencia con marca de tiempo obligatoria
  * Purga de mensajes sin timestamp y validación estricta de integridad
- * Versión: v0.9.2
+ * Versión: v0.9.3
  */
 
 class CloudSaveManager {
@@ -318,7 +318,7 @@ class CloudSaveManager {
         chunkIndex: i,
         totalChunks: totalChunks,
         isVerifiedSave: true,
-        version: 'v0.9.2',
+        version: 'v0.9.3',
         data: chunk
       };
 

@@ -1,7 +1,7 @@
 /**
  * NDS Web Emulator - Main Application
  * Orquestador principal, inicializador del núcleo WASM, Bóveda de Partidas y control de interfaz
- * Versión: v0.9.2
+ * Versión: v0.9.3
  */
 
 class NDSEmulatorApp {
@@ -219,13 +219,23 @@ class NDSEmulatorApp {
    */
   /**
    * Extrae los datos de guardado activos directamente de GameManager o del FS de Emscripten
+   * Forzando _refresh_save_files() para volcar la memoria RAM de DeSmuME al sistema de archivos
    */
   extractSaveDataFromGameManager(gm) {
     if (!gm) return null;
     let data = null;
     try {
-      if (typeof gm.saveSaveFiles === 'function') gm.saveSaveFiles();
-      if (typeof gm.getSaveFile === 'function') data = gm.getSaveFile(false);
+      // 1. Forzar al núcleo RetroArch DeSmuME a volcar la SRAM de la RAM a la memoria virtual
+      if (typeof window.EJS_emulator?.Module?._refresh_save_files === 'function') {
+        try { window.EJS_emulator.Module._refresh_save_files(); } catch (e) {}
+      } else if (typeof gm.emulator?.Module?._refresh_save_files === 'function') {
+        try { gm.emulator.Module._refresh_save_files(); } catch (e) {}
+      }
+
+      // 2. Extraer archivo de guardado sincronizado (flush = true)
+      if (typeof gm.getSaveFile === 'function') {
+        data = gm.getSaveFile(true);
+      }
     } catch (e) {}
 
     if ((!data || data.byteLength < 512) && gm.FS) {
@@ -277,6 +287,7 @@ class NDSEmulatorApp {
 
           // Si la SRAM es válida y ha cambiado respecto al último guardado
           if (isValidSram && (!this.lastSavedHash || currentHash !== this.lastSavedHash)) {
+            console.log('⚡ [Auto-Save Daemon] ¡Detectado cambio de guardado en Pokémon! Hash previo:', this.lastSavedHash, '-> Nuevo hash:', currentHash);
             this.lastSavedHash = currentHash;
             this.hasPlayerSavedInSession = true;
             window._activeRomSaveData = saveData;
@@ -293,7 +304,7 @@ class NDSEmulatorApp {
       } catch (err) {
         console.warn('Error en daemon de auto-guardado:', err);
       }
-    }, 3000);
+    }, 2000);
 
     // Guardar automáticamente antes de salir o recargar la página
     window.addEventListener('beforeunload', () => {
@@ -952,10 +963,13 @@ class NDSEmulatorApp {
       btnLauncherStartGame.addEventListener('click', async () => {
         this.closeGameLauncher();
         const rom = this.pendingLaunchRom;
-        if (rom && (rom.blob || rom.file)) {
-          await this.startEmulator(rom.blob || rom.file, rom.name);
-        } else if (this.currentRomBlob) {
-          await this.startEmulator(this.currentRomBlob, this.currentRomName);
+        const blobToStart = rom?.blob || rom?.file || this.currentRomBlob;
+        const nameToStart = rom?.name || this.currentRomName || 'Pokemon - Edicion Plata SoulSilver.nds';
+        if (blobToStart) {
+          console.log(`[Launcher] Iniciando juego: ${nameToStart}`);
+          await this.startEmulator(blobToStart, nameToStart);
+        } else {
+          alert('No se pudo encontrar el archivo del juego en memoria. Por favor, selecciona la ROM (.nds) con el botón "Seleccionar ROM".');
         }
       });
     }
@@ -1766,7 +1780,8 @@ class NDSEmulatorApp {
         'savefile_directory = "/data/saves"',
         'savestate_directory = "/data/saves"',
         'block_sram_overwrite = false',
-        'autosave_interval = 10',
+        'autosave_interval = 2',
+        'sram_autosave = true',
         'screenshot_directory = "/"',
         'video_gpu_screenshot = false',
         'audio_latency = 64',
@@ -1960,7 +1975,7 @@ class NDSEmulatorApp {
           const gm = window.EJS_emulator.gameManager;
           let sData = null;
           if (typeof gm.getSaveFile === 'function') {
-            sData = gm.getSaveFile(false);
+            sData = gm.getSaveFile(true);
           }
           if (sData && sData.byteLength >= 512) {
             this.initialBootSramHash = this.computeSaveHash(sData);
@@ -2583,10 +2598,17 @@ class NDSEmulatorApp {
 
       const getRomBlob = () => {
         if (!rom || !rom.data) return null;
-        const romName = rom.name || 'Pokemon - Edicion Plata SoulSilver.nds';
-        if (rom.data instanceof File) return rom.data;
-        if (rom.data instanceof Blob) return new File([rom.data], romName, { type: 'application/octet-stream' });
-        return new File([rom.data], romName, { type: 'application/octet-stream' });
+        if (rom.data instanceof Blob || rom.data instanceof File) {
+          return rom.data;
+        }
+        if (rom.data instanceof ArrayBuffer || ArrayBuffer.isView(rom.data)) {
+          return new Blob([rom.data], { type: 'application/octet-stream' });
+        }
+        try {
+          return new Blob([rom.data], { type: 'application/octet-stream' });
+        } catch (e) {
+          return null;
+        }
       };
 
       const prepareRom = async (e) => {
@@ -2596,6 +2618,11 @@ class NDSEmulatorApp {
             const romName = rom.name || 'Pokemon - Edicion Plata SoulSilver.nds';
             const romBlob = getRomBlob();
 
+            if (!romBlob || (romBlob.size !== undefined && romBlob.size === 0)) {
+              alert('Los datos del juego no se pudieron leer. Por favor, vuelve a seleccionar la ROM (.nds) con el botón "Seleccionar ROM".');
+              return;
+            }
+
             this.currentRomName = romName;
             this.currentRomBlob = romBlob;
 
@@ -2604,8 +2631,8 @@ class NDSEmulatorApp {
               window.saveManager.updateRomLastPlayed(romName);
             }
 
-            console.log(`[Recent ROM Launcher] Preparando juego: ${romName}`);
-            await this.openGameLauncher(null, romName, romBlob);
+            console.log(`[Recent ROM Launcher] Preparando juego: ${romName} (${romBlob.size || rom.size} bytes)`);
+            await this.openGameLauncher(romBlob, romName, romBlob);
           } else {
             alert('Los datos de este juego no se encuentran en memoria. Por favor, vuelve a cargarlo con "Seleccionar ROM".');
           }
@@ -2686,7 +2713,7 @@ class NDSEmulatorApp {
         if ('caches' in window) {
           caches.keys().then((keys) => {
              keys.forEach((key) => {
-              if (key !== 'nds-emulator-v0.9.2') {
+              if (key !== 'nds-emulator-v0.9.3') {
                 console.log('Purgando caché obsoleta:', key);
                 caches.delete(key);
               }
@@ -2694,7 +2721,7 @@ class NDSEmulatorApp {
           });
         }
 
-        navigator.serviceWorker.register('sw.js?v=0.9.2').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=0.9.3').then((reg) => {
           reg.update();
         }).catch(err => {
           console.log('SW registration error:', err);

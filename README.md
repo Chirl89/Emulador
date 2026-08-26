@@ -1,6 +1,6 @@
 # 🎮 NDS Web Emulator (ROG Ally & Safari Edition)
 
-[![Version](https://img.shields.io/badge/version-v0.9.2-00f0ff.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-v0.9.3-00f0ff.svg)](./VERSION)
 [![Platform](https://img.shields.io/badge/platform-Web%20|%20ROG%20Ally%20|%20Safari%20iOS%20|%20Opera%20GX-ff0055.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
@@ -39,7 +39,7 @@ Un emulador web de **Nintendo DS (NDS)** de alto rendimiento basado en WebAssemb
 
 ## 💉 PKHeX Web Studio & Panel de Preparación de Juego
 
-A partir de la versión **`v0.9.2`**, el emulador incorpora una suite integrada de edición de guardados de Pokémon:
+A partir de la versión **`v0.9.3`**, el emulador incorpora una suite integrada de edición de guardados de Pokémon:
 
 1. **🚀 Panel de Preparación**: Al seleccionar una ROM `.nds` o pulsar en un juego reciente, no se inicia la emulación inmediatamente. Se abre un panel interactivo que muestra:
    - Nombre y peso de la ROM.
